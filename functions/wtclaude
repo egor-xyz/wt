@@ -319,7 +319,7 @@ else
         $'\e'|q|Q) aborted=1; break ;;
         $'\n'|$'\r') break ;;
         ' ')
-          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=25; }
+          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=45; }
           ;;
       esac
     else
