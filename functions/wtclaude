@@ -141,7 +141,8 @@ else
     esac
   }
   _wt_check_now() {
-    git -C "$WTCLAUDE_DIR" fetch --quiet --tags origin main 2>/dev/null
+    local old_ver=$WTCLAUDE_VERSION
+    git -C "$WTCLAUDE_DIR" fetch --quiet --tags --force origin main 2>/dev/null
     local lh=$(git -C "$WTCLAUDE_DIR" rev-parse HEAD 2>/dev/null)
     local rh=$(git -C "$WTCLAUDE_DIR" rev-parse origin/main 2>/dev/null)
     if [[ -n $lh && -n $rh && $lh != $rh ]] \
@@ -149,15 +150,23 @@ else
       if git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null; then
         local newtag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 2>/dev/null)
         _wt_update_tag=""
-        _wt_check_msg="updated to ${newtag:-HEAD}"
         WTCLAUDE_VERSION=${newtag#v}
+        _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
       else
         _wt_update_tag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null)
         _wt_check_msg="update available"
       fi
     else
+      # Commits already match — but a tag-only release may have arrived.
+      local new_ver=$(git -C "$WTCLAUDE_DIR" describe --tags --always --dirty 2>/dev/null)
+      new_ver=${new_ver#v}
       _wt_update_tag=""
-      _wt_check_msg="no updates"
+      if [[ -n $new_ver && $new_ver != $old_ver ]]; then
+        WTCLAUDE_VERSION=$new_ver
+        _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
+      else
+        _wt_check_msg="no updates"
+      fi
     fi
   }
   _wt_setting_toggle() {
