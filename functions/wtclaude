@@ -8,37 +8,12 @@ setopt extended_glob no_xtrace no_verbose typeset_silent
 local dir=~/.claude/sessions
 [[ -d $dir ]] || { echo "no $dir"; return 1; }
 
-# Update check (background, cached). Sets _wt_update_tag if newer tag found.
+# One-shot auto-update: fetch + ff-only pull in background, once per launch.
+# No cache, no polling. New version visible on next invocation.
 local _wt_update_tag=""
-if [[ ${WTCLAUDE_UPDATE_CHECK:-0} == 1 || ${WTCLAUDE_AUTO_UPDATE:-0} == 1 ]] \
-   && [[ -d $WTCLAUDE_DIR/.git ]]; then
-  local _wt_cache=${XDG_CACHE_HOME:-$HOME/.cache}/wtclaude
-  mkdir -p "$_wt_cache" 2>/dev/null
-  local _wt_status=$_wt_cache/update-status _wt_stamp=$_wt_cache/last-check
-  local _wt_now=$(date +%s) _wt_last=0
-  [[ -r $_wt_stamp ]] && _wt_last=$(<$_wt_stamp)
-  local _wt_iv=${WTCLAUDE_CHECK_INTERVAL:-3600}
-  if (( _wt_now - _wt_last > _wt_iv )); then
-    (
-      git -C "$WTCLAUDE_DIR" fetch --quiet origin main 2>/dev/null || exit 0
-      local lh=$(git -C "$WTCLAUDE_DIR" rev-parse HEAD 2>/dev/null)
-      local rh=$(git -C "$WTCLAUDE_DIR" rev-parse origin/main 2>/dev/null)
-      if [[ -n $lh && -n $rh && $lh != $rh ]] \
-         && git -C "$WTCLAUDE_DIR" merge-base --is-ancestor "$lh" "$rh" 2>/dev/null; then
-        git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null > "$_wt_status"
-      else
-        : > "$_wt_status"
-      fi
-      echo "$_wt_now" > "$_wt_stamp"
-    ) &!
-  fi
-  [[ -s $_wt_status ]] && _wt_update_tag=$(<$_wt_status)
-  if [[ -n $_wt_update_tag && ${WTCLAUDE_AUTO_UPDATE:-0} == 1 ]]; then
-    git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null && {
-      : > "$_wt_status"
-      _wt_update_tag=""
-    }
-  fi
+if [[ ${WTCLAUDE_AUTO_UPDATE:-0} == 1 && -d $WTCLAUDE_DIR/.git ]]; then
+  ( git -C "$WTCLAUDE_DIR" fetch --quiet --tags origin main 2>/dev/null \
+    && git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null ) &!
 fi
 
 local live
@@ -250,9 +225,7 @@ else
           fi
         done
         print -P ""$'\e[K'
-        local _space_tip=""
-        [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && _space_tip=" · Space 🎰"
-        print -P "%F{244}↑↓ navigate · Enter pick · → settings${_space_tip} · Esc quit%f"$'\e[K'
+        print -P "%F{244}↑↓ navigate · Enter pick · → settings · Esc quit%f"$'\e[K'
       else
         # Settings panel
         print -P "%F{244}Settings%f"$'\e[K'
