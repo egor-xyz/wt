@@ -1,0 +1,143 @@
+#autoload
+# wtclaude — pick a running Claude Code session and cd into its cwd.
+# Reads ~/.claude/sessions/*.json, filters live pids, shows arrow picker.
+
+emulate -L zsh
+setopt extended_glob no_xtrace no_verbose typeset_silent
+
+local dir=~/.claude/sessions
+[[ -d $dir ]] || { echo "no $dir"; return 1; }
+
+local lines
+lines=$(for f in $dir/*.json(N); do
+  jq -r 'select(.pid != null) | "\(.updatedAt)\t\(.pid)\t\(.cwd)\t\(.name // "-")"' "$f" 2>/dev/null
+done | while IFS=$'\t' read -r ts pid cwd name; do
+  kill -0 "$pid" 2>/dev/null && printf '%s\t%s\t%s\t%s\n' "$ts" "$pid" "$cwd" "$name"
+done | sort -rn | awk -F'\t' '!seen[$3]++')
+
+[[ -z $lines ]] && { echo "no live claude sessions"; return 1; }
+
+# Group by repo (strip /.claude/worktrees/<name>). Repo root first, then
+# worktrees indented. Repos ordered by newest activity. Output: cwd<TAB>name<TAB>indent
+lines=$(printf '%s\n' "$lines" | awk -F'\t' '
+  {
+    ts=$1; cwd=$3; name=$4
+    repo=cwd; rank=0
+    if (match(cwd, /\/\.claude\/worktrees\//)) { repo=substr(cwd,1,RSTART-1); rank=1 }
+    if (!(repo in rts) || ts+0 > rts[repo]+0) rts[repo]=ts
+    e_repo[NR]=repo; e_rank[NR]=rank; e_ts[NR]=ts; e_cwd[NR]=cwd; e_name[NR]=name
+  }
+  END {
+    for (i=1; i<=NR; i++)
+      printf "%s\t%s\t%s\t%s\t%s\t%s\n", rts[e_repo[i]], e_repo[i], e_rank[i], e_ts[i], e_cwd[i], e_name[i]
+  }
+' | sort -t$'\t' -k1,1rn -k2,2 -k3,3n -k4,4rn | awk -F'\t' '{printf "%s\t%s\t%s\n", $5, $6, $3}')
+
+local -a items is_last
+items=("${(@f)lines}")
+local count=${#items}
+
+# Mark last worktree per repo group for tree-line rendering
+for ((i=1; i<=count; i++)); do
+  local -a fi=(${(s:	:)items[i]})
+  local cwd_i=${fi[1]} ind_i=${fi[3]}
+  if (( ind_i == 0 )); then
+    is_last[i]=0
+    continue
+  fi
+  local repo_i=${cwd_i%/.claude/worktrees/*}
+  if (( i == count )); then
+    is_last[i]=1
+  else
+    local -a fn=(${(s:	:)items[i+1]})
+    local cwd_n=${fn[1]} ind_n=${fn[3]}
+    local repo_n=${cwd_n%/.claude/worktrees/*}
+    if [[ $repo_n != $repo_i || $ind_n == 0 ]]; then
+      is_last[i]=1
+    else
+      is_last[i]=0
+    fi
+  fi
+done
+
+local pick
+if (( count == 1 )); then
+  pick=${items[1]}
+elif command -v fzf >/dev/null; then
+  pick=$(printf '%s\n' "${items[@]}" | column -ts $'\t' | fzf --height=40% --reverse --prompt="claude> ")
+  [[ -z $pick ]] && return 1
+  pick=${items[$(printf '%s\n' "${items[@]}" | column -ts $'\t' | grep -nFx "$pick" | cut -d: -f1)]}
+else
+  local sel=1 key seq aborted=0 frame=0
+  # Robot state — managed by cdclaude_robot component
+  local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1
+  autoload -Uz crazy-robot
+  # Enter alternate screen + hide cursor
+  printf '\e[?1049h\e[?25l'
+  trap 'printf "\e[?25h\e[?1049l"' EXIT INT TERM
+  while true; do
+    # Home cursor + clear from cursor down (no full-screen wipe → no flicker)
+    printf '\e[H\e[J'
+    # Header — animated robot component
+    local cols=${COLUMNS:-80}
+    local track=$(( cols > 30 ? 30 : cols - 12 ))
+    crazy-robot $track
+    # Separator line under animation
+    local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
+    local sep=""
+    for ((_s=0; _s<sep_w; _s++)); do sep+="─"; done
+    print -P "%F{240}${sep}%f"
+    for ((i=1; i<=count; i++)); do
+      local row=${items[i]}
+      local -a fields=(${(s:	:)row})
+      local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]}
+      local label=$rcwd
+      if [[ $rcwd == */worktrees/* ]]; then
+        label=${rcwd##*/worktrees/}
+        label=${label%%/*}
+      fi
+      local prefix=""
+      if (( rind == 1 )); then
+        if (( is_last[i] )); then
+          prefix="%F{244}└─%f "
+        else
+          prefix="%F{244}├─%f "
+        fi
+      fi
+      if (( i == sel )); then
+        print -P "${prefix}%F{214}${label}%f  %F{244}(${rname})%f"
+      else
+        print -P "${prefix}${label}  %F{244}(${rname})%f"
+      fi
+    done
+    # Read with animation timeout — tick frame when no key arrives
+    if ! read -t 0.25 -k1 -s key 2>/dev/null; then
+      (( frame++ ))
+      continue
+    fi
+    seq=$key
+    if [[ $key == $'\e' ]]; then
+      local c
+      while read -t 0.05 -k1 -s c 2>/dev/null; do
+        seq+=$c
+        [[ ${#seq} -ge 3 ]] && break
+      done
+    fi
+    case $seq in
+      $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
+      $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
+      $'\e'|q|Q) aborted=1; break ;;
+      $'\n'|$'\r') break ;;
+      ' ') _robot_state=slot; _robot_t=0; _robot_dur=25 ;;
+    esac
+    (( frame++ ))
+  done
+  # Leave alternate screen + show cursor
+  printf '\e[?25h\e[?1049l'
+  trap - EXIT INT TERM
+  (( aborted )) && return 1
+  pick=${items[sel]}
+fi
+
+local cwd=${${(s:	:)pick}[1]}
+[[ -d $cwd ]] && cd "$cwd" || { echo "bad cwd: $cwd"; return 1; }

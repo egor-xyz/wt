@@ -1,0 +1,136 @@
+#autoload
+# crazy-robot — render one frame of the animated robot mascot.
+# Usage:   crazy-robot <track_width>
+# Reads/writes shared state vars (caller must declare local before loop):
+#   _robot_state, _robot_t, _robot_dur, _robot_pos, _robot_dir
+# Prints robot lines to stdout in orange ANSI; no trailing color reset issues.
+
+emulate -L zsh
+setopt extended_glob no_xtrace no_verbose typeset_silent
+
+local track=${1:-30}
+(( track < 1 )) && track=1
+
+local -a walk_frames idle_frames
+walk_frames=(
+$'  .-----.\n  [o   o]\n  /|===|\\\n   o   o'
+$'  .-----.\n  [o   o]\n  /|=-=|\\\n   O   O'
+)
+idle_frames=(
+$'  .-----.\n  [- - -]\n  /|===|\\\n   o   o'
+$'  .-----.\n  [o   o]\n  /|===|\\\n   o   o'
+$'  .-----.\\o\n  [o   o]\n   |===|\n   o   o'
+$'  .-----.\n  [^   ^]\n  /|===|\\\n   o   o'
+$'  .-----.\n  [o   o]\n  /|=u=|\\\n   o   o'
+$' \\.-----./\n  [O   O]\n   |===|\n   o   o'
+$'  .-----.\n  [- _ -]\n  /|===|\\\n   o   o'
+$'  .-----.\n  [O   O]\n  /|=O=|\\\n   o   o'
+$'  .-----.\n  [O   O]\n  /|===|\\\n   ~   ~'
+$'  .-----.\n  [O   O]\n   |===|\n   \'   \''
+)
+
+# Pick new state when current expires
+if (( _robot_t >= _robot_dur )); then
+  local -a states=(walk walk static blink wave sleep surprise smile dance jump slot)
+  _robot_state=${states[$((RANDOM % ${#states} + 1))]}
+  _robot_t=0
+  _robot_dur=$(( 4 + RANDOM % 9 ))
+fi
+
+local raw color
+# Color per state — dance/jump cycle a rainbow palette
+local -a rainbow=(196 208 220 46 51 75 99 165)
+case $_robot_state in
+  walk)     color=208 ;;  # orange
+  static)   color=244 ;;  # grey
+  blink)    color=214 ;;  # amber
+  wave)     color=220 ;;  # yellow
+  surprise) color=196 ;;  # red
+  smile)    color=213 ;;  # pink
+  sleep)    color=63  ;;  # blue
+  dance)    color=${rainbow[$((_robot_t % ${#rainbow} + 1))]} ;;
+  jump)     color=${rainbow[$((_robot_t % ${#rainbow} + 1))]} ;;
+  slot)     color=226 ;;  # yellow (jackpot overrides below)
+esac
+case $_robot_state in
+  walk)
+    _robot_pos=$(( _robot_pos + _robot_dir ))
+    if (( _robot_pos >= track - 1 )); then _robot_pos=$((track - 1)); _robot_dir=-1; fi
+    if (( _robot_pos <= 0 )); then _robot_pos=0; _robot_dir=1; fi
+    raw=${walk_frames[$((_robot_t % ${#walk_frames} + 1))]}
+    ;;
+  static)   raw=${walk_frames[1]} ;;
+  blink)    raw=${idle_frames[$((_robot_t % 2 == 0 ? 1 : 2))]} ;;
+  wave)     raw=${idle_frames[3]} ;;
+  surprise) raw=${idle_frames[4]} ;;
+  smile)    raw=${idle_frames[5]} ;;
+  sleep)    raw=${idle_frames[7]} ;;
+  dance)    raw=${idle_frames[$((_robot_t % 2 == 0 ? 6 : 2))]} ;;
+  jump)     raw=${idle_frames[$((_robot_t % 2 == 0 ? 9 : 10))]} ;;
+  slot)
+    local -a syms=('🍒' '🍋' '🍇' '🔔' '⭐' '💎' '7️⃣')
+    local spin_end=8
+    (( _robot_t == 0 )) && _robot_locked=""
+    if (( _robot_t < spin_end )); then
+      # Spinning: random reels each tick
+      _robot_s1=${syms[$((RANDOM % ${#syms} + 1))]}
+      _robot_s2=${syms[$((RANDOM % ${#syms} + 1))]}
+      _robot_s3=${syms[$((RANDOM % ${#syms} + 1))]}
+    elif [[ -z $_robot_locked ]]; then
+      # Lock the result on first hold tick
+      _robot_s1=${syms[$((RANDOM % ${#syms} + 1))]}
+      _robot_s2=${syms[$((RANDOM % ${#syms} + 1))]}
+      _robot_s3=${syms[$((RANDOM % ${#syms} + 1))]}
+      (( RANDOM % 100 < 15 )) && { _robot_s1='7️⃣'; _robot_s2='7️⃣'; _robot_s3='7️⃣'; }
+      _robot_locked=1
+    fi
+    if [[ $_robot_s1 == '7️⃣' && $_robot_s2 == '7️⃣' && $_robot_s3 == '7️⃣' && -n $_robot_locked ]]; then
+      # JACKPOT! Robot jumps, fireworks around.
+      local -a fw_chars=('✨' '🎆' '🎇' '*' '.' '+' '·')
+      local fw_top="" fw_bot=""
+      local _f
+      for ((_f=0; _f<11; _f++)); do
+        if (( RANDOM % 3 == 0 )); then
+          fw_top+=${fw_chars[$((RANDOM % ${#fw_chars} + 1))]}
+        else
+          fw_top+=" "
+        fi
+      done
+      for ((_f=0; _f<11; _f++)); do
+        if (( RANDOM % 3 == 0 )); then
+          fw_bot+=${fw_chars[$((RANDOM % ${#fw_chars} + 1))]}
+        else
+          fw_bot+=" "
+        fi
+      done
+      # Jump body alternates (legs tucked vs landed)
+      local jump_body
+      if (( _robot_t % 2 == 0 )); then
+        jump_body=$'  .----------.\n  [ '"$_robot_s1 $_robot_s2 $_robot_s3"$' ]\n   |==========|\n   \'        \''
+      else
+        jump_body=$'  .----------.\n  [ '"$_robot_s1 $_robot_s2 $_robot_s3"$' ]\n  /|==========|\\\n   ~        ~'
+      fi
+      raw="$fw_top"$'\n'"$jump_body"$'\n'"$fw_bot"
+      color=${rainbow[$((_robot_t % ${#rainbow} + 1))]}
+    else
+      raw=$'  .----------.\n  [ '"$_robot_s1 $_robot_s2 $_robot_s3"$' ]\n  /|==========|\\\n   o        o'
+      if [[ -n $_robot_locked ]]; then
+        color=226  # hold: steady yellow
+      else
+        color=${rainbow[$((_robot_t % ${#rainbow} + 1))]}
+      fi
+    fi
+    ;;
+esac
+(( _robot_t++ ))
+
+local pad=""
+local _p
+for ((_p=0; _p<_robot_pos; _p++)); do pad+=" "; done
+local body=${raw//$'\n'/$'\n'$pad}
+# Body stays orange; only expression chars between [...] take state color.
+local orange=$'\e[38;5;208m'
+local accent=$'\e[38;5;'"$color"'m'
+local reset=$'\e[39m'
+local highlighted=${body//(#b)\[([^]]*)\]/\[${accent}${match[1]}${orange}\]}
+printf '%s%s%s%s\n' "$orange" "$pad" "$highlighted" "$reset"
