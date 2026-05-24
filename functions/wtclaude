@@ -5,19 +5,14 @@
 emulate -L zsh
 setopt extended_glob no_xtrace no_verbose typeset_silent
 
-# Auto-reload: if function source on disk is newer than current load time
-# (e.g. auto-update pulled a new version in a previous run), re-source the
-# plugin entry so this shell picks up fresh definitions without restart.
-if [[ -n $WTCLAUDE_DIR && -r $WTCLAUDE_DIR/wtclaude.plugin.zsh ]]; then
-  local _wt_fn=$WTCLAUDE_DIR/functions/wtclaude
-  local _wt_mt=0
-  if [[ -r $_wt_fn ]]; then
-    _wt_mt=$(zstat -L +mtime -- "$_wt_fn" 2>/dev/null || stat -f %m "$_wt_fn" 2>/dev/null || echo 0)
-  fi
-  if (( _wt_mt > ${WTCLAUDE_LOADED_AT:-0} )); then
-    source "$WTCLAUDE_DIR/wtclaude.plugin.zsh"
-    wtclaude "$@"
-    return
+# Detect whether installed copy is newer than the version this shell loaded.
+# If so, set _wt_restart_tag so the picker shows a "restart shell" banner.
+local _wt_restart_tag=""
+if [[ -n $WTCLAUDE_DIR && -d $WTCLAUDE_DIR/.git ]]; then
+  local _wt_installed=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 2>/dev/null)
+  _wt_installed=${_wt_installed#v}
+  if [[ -n $_wt_installed && $_wt_installed != ${WTCLAUDE_VERSION%-*} && $_wt_installed != $WTCLAUDE_VERSION ]]; then
+    _wt_restart_tag=$_wt_installed
   fi
 fi
 
@@ -220,6 +215,9 @@ else
         print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%f"$'\e[K'
       else
         print -P "%F{240}─${sep}%F{238}${vtag}%f"$'\e[K'
+      fi
+      if [[ -n $_wt_restart_tag ]]; then
+        print -P "%F{214}  ↻ v${_wt_restart_tag} installed — restart shell or run 'source \$WTCLAUDE_DIR/wtclaude.plugin.zsh' to apply%f"$'\e[K'
       fi
       if [[ $mode == list ]]; then
         for ((i=1; i<=count; i++)); do
