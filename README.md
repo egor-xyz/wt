@@ -1,4 +1,4 @@
-# wtclaude
+# wtclaude 🤖
 
 Jump between running Claude Code sessions and their git worktrees with a single
 keystroke. Animated robot mascot included. 🤖
