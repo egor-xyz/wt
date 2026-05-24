@@ -250,7 +250,7 @@ else
           fi
         done
         print -P ""$'\e[K'
-        print -P "%F{244}↑↓ navigate · Enter pick · → settings · Esc quit%f"$'\e[K'
+        print -P "%F{244}↑↓ navigate · Enter pick · → settings · q quit%f"$'\e[K'
       else
         # Settings panel
         print -P "%F{244}Settings%f"$'\e[K'
