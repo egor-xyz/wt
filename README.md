@@ -16,7 +16,7 @@ You run Claude Code in five worktrees. You forget which terminal has which.
 You `cd` into the wrong one. You curse.
 
 **`wtclaude` finds them all, groups them, and `cd`s you into the right one.**
-A robot does a little dance while you pick.
+A robot does a little dance while you pick. 🤖
 
 ```
    .-----.
