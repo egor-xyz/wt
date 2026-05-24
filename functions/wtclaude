@@ -163,6 +163,12 @@ else
         _wt_update_tag=""
         WTCLAUDE_VERSION=${newtag#v}
         _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
+        # Refresh autoload so the NEXT `wtclaude` call runs the new code,
+        # not just the new version label. Current invocation finishes with
+        # the body it already has in memory — safe.
+        unfunction wtclaude crazy-robot 2>/dev/null
+        autoload -Uz wtclaude crazy-robot
+        WTCLAUDE_LOADED_AT=$(date +%s)
       else
         _wt_update_tag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null)
         _wt_check_msg="update available"
@@ -217,7 +223,7 @@ else
         print -P "%F{240}─${sep}%F{238}${vtag}%f"$'\e[K'
       fi
       if [[ -n $_wt_restart_tag ]]; then
-        print -P "%F{214}  ↻ v${_wt_restart_tag} installed — restart shell or run 'source \$WTCLAUDE_DIR/wtclaude.plugin.zsh' to apply%f"$'\e[K'
+        print -P "%F{109}  ↻ v${_wt_restart_tag} ready · restart shell to apply%f"$'\e[K'
       fi
       if [[ $mode == list ]]; then
         for ((i=1; i<=count; i++)); do
