@@ -126,67 +126,179 @@ local pick
 if (( count == 1 )); then
   pick=${items[1]}
 else
-  local sel=1 key seq aborted=0 frame=0
-  # Robot state — managed by cdclaude_robot component
+  local sel=1 key seq aborted=0 frame=0 focused=1 mode=list ssel=1
+  local -a settings_keys settings_labels settings_types settings_enum
+  settings_keys=(_WT_CHECK_NOW WTCLAUDE_NO_ROBOT WTCLAUDE_AUTO_UPDATE)
+  settings_labels=("Check for updates" "Robot animation" "Auto-update")
+  settings_types=(action invbool bool)
+  local scount=${#settings_keys}
+  # Robot state
   local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1
   autoload -Uz crazy-robot
-  # Enter alternate screen + hide cursor
-  printf '\e[?1049h\e[?25l'
-  trap 'printf "\e[?25h\e[?1049l"' EXIT INT TERM
-  while true; do
-    # Home cursor + clear from cursor down (no full-screen wipe → no flicker)
-    printf '\e[H\e[J'
-    # Header — animated robot component
-    local cols=${COLUMNS:-80}
-    local track=$(( cols > 30 ? 30 : cols - 12 ))
-    if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
-      crazy-robot $track
-    fi
-    # Separator line — version on right, update tag on left if present
-    local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
-    local vtag=""
-    [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
-    local utag=""
-    [[ -n $_wt_update_tag ]] && utag=" ↑ ${_wt_update_tag} available "
-    local plain_w=$(( sep_w - ${#vtag} - ${#utag} - 2 ))
-    (( plain_w < 0 )) && plain_w=0
-    local sep=""
-    for ((_s=0; _s<plain_w; _s++)); do sep+="─"; done
-    if [[ -n $utag ]]; then
-      print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%F{240}─%f"
-    else
-      print -P "%F{240}─${sep}%F{238}${vtag}%F{240}─%f"
-    fi
-    for ((i=1; i<=count; i++)); do
-      local row=${items[i]}
-      local -a fields=(${(s:	:)row})
-      local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]}
-      local label=$rcwd
-      if [[ $rcwd == */worktrees/* ]]; then
-        label=${rcwd##*/worktrees/}
-        label=${label%%/*}
-      fi
-      local prefix=""
-      if (( rind == 1 )); then
-        if (( is_last[i] )); then
-          prefix="%F{244}└─%f "
+
+  # Helper: persist current settings vars to ~/.config/wtclaude/settings
+  _wt_save_settings() {
+    local cfg_dir=${XDG_CONFIG_HOME:-$HOME/.config}/wtclaude
+    mkdir -p "$cfg_dir" 2>/dev/null
+    {
+      local k i=0
+      for k in $settings_keys; do
+        (( i++ ))
+        [[ ${settings_types[i]} == action ]] && continue
+        printf '%s=%s\n' "$k" "${(P)k:-}"
+      done
+    } > "$cfg_dir/settings"
+  }
+  local _wt_check_msg="" _wt_pending_check=0
+  _wt_setting_value() {
+    local k=$1 t=$2 v=${(P)1:-}
+    case $t in
+      bool)    [[ $v == 1 ]] && echo true || echo false ;;
+      invbool) [[ $v == 1 ]] && echo false || echo true ;;
+      action)
+        if [[ -n $_wt_update_tag ]]; then
+          echo "${_wt_update_tag} available"
+        elif [[ -n $_wt_check_msg ]]; then
+          echo "$_wt_check_msg"
         else
-          prefix="%F{244}├─%f "
-        fi
+          echo "press enter"
+        fi ;;
+    esac
+  }
+  _wt_check_now() {
+    git -C "$WTCLAUDE_DIR" fetch --quiet --tags origin main 2>/dev/null
+    local lh=$(git -C "$WTCLAUDE_DIR" rev-parse HEAD 2>/dev/null)
+    local rh=$(git -C "$WTCLAUDE_DIR" rev-parse origin/main 2>/dev/null)
+    if [[ -n $lh && -n $rh && $lh != $rh ]] \
+       && git -C "$WTCLAUDE_DIR" merge-base --is-ancestor "$lh" "$rh" 2>/dev/null; then
+      if git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null; then
+        local newtag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 2>/dev/null)
+        _wt_update_tag=""
+        _wt_check_msg="updated to ${newtag:-HEAD}"
+        WTCLAUDE_VERSION=${newtag#v}
       else
-        prefix="%F{244}•%f "
+        _wt_update_tag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null)
+        _wt_check_msg="update available"
       fi
-      local suffix=""
-      [[ -n $rname && $rname != "-" ]] && suffix="  %F{244}(${rname})%f"
-      if (( i == sel )); then
-        print -P "${prefix}%F{214}${label}%f${suffix}"
+    else
+      _wt_update_tag=""
+      _wt_check_msg="no updates"
+    fi
+  }
+  _wt_setting_toggle() {
+    local k=$1 t=$2 v=${(P)1:-}
+    case $t in
+      bool|invbool)
+        if [[ $v == 1 ]]; then eval "$k=0"; else eval "$k=1"; fi ;;
+      action)
+        [[ $k == _WT_CHECK_NOW ]] && { _wt_check_msg="checking..."; _wt_pending_check=1; } ;;
+    esac
+  }
+
+  local _wt_stty=$(stty -g 2>/dev/null)
+  stty -echo 2>/dev/null
+  printf '\e[?1049h\e[?25l\e[?1004h'
+  trap 'printf "\e[?25h\e[?1049l\e[?1004l"; [[ -n $_wt_stty ]] && stty "$_wt_stty" 2>/dev/null' EXIT INT TERM
+  while true; do
+    if (( focused )); then
+      printf '\e[H'
+      local cols=${COLUMNS:-80}
+      local track=$(( cols > 30 ? 30 : cols - 12 ))
+      if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+        crazy-robot $track
+      fi
+      local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
+      local vtag=""
+      [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
+      local utag=""
+      [[ -n $_wt_update_tag ]] && utag=" ↑ ${_wt_update_tag} available "
+      local plain_w=$(( sep_w - ${#vtag} - ${#utag} - 2 ))
+      (( plain_w < 0 )) && plain_w=0
+      local sep=""
+      for ((_s=0; _s<plain_w; _s++)); do sep+="─"; done
+      if [[ -n $utag ]]; then
+        print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%F{240}─%f"$'\e[K'
       else
-        print -P "${prefix}${label}${suffix}"
+        print -P "%F{240}─${sep}%F{238}${vtag}%F{240}─%f"$'\e[K'
       fi
-    done
-    # Read with animation timeout — tick frame when no key arrives
-    if ! read -t 0.25 -k1 -s key 2>/dev/null; then
-      (( frame++ ))
+      if [[ $mode == list ]]; then
+        for ((i=1; i<=count; i++)); do
+          local row=${items[i]}
+          local -a fields=(${(s:	:)row})
+          local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]}
+          local label=$rcwd
+          if [[ $rcwd == */worktrees/* ]]; then
+            label=${rcwd##*/worktrees/}
+            label=${label%%/*}
+          fi
+          local prefix=""
+          if (( rind == 1 )); then
+            if (( is_last[i] )); then
+              prefix="%F{244}└─%f "
+            else
+              prefix="%F{244}├─%f "
+            fi
+          else
+            prefix="%F{51}●%f "
+          fi
+          local suffix=""
+          [[ -n $rname && $rname != "-" ]] && suffix="  %F{244}(${rname})%f"
+          if (( i == sel )); then
+            print -P "${prefix}%F{214}${label}%f${suffix}"$'\e[K'
+          else
+            print -P "${prefix}${label}${suffix}"$'\e[K'
+          fi
+        done
+        print -P ""$'\e[K'
+        local _space_tip=""
+        [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && _space_tip=" · Space 🎰"
+        print -P "%F{244}↑↓ navigate · Enter pick · → settings${_space_tip} · Esc quit%f"$'\e[K'
+      else
+        # Settings panel
+        print -P "%F{244}Settings%f"$'\e[K'
+        print -P ""$'\e[K'
+        local lw=$(( cols > 40 ? 30 : cols / 2 ))
+        for ((i=1; i<=scount; i++)); do
+          local sk=${settings_keys[i]} sl=${settings_labels[i]} st=${settings_types[i]}
+          local sv=$(_wt_setting_value $sk $st)
+          local pad=""
+          local need=$(( lw - ${#sl} ))
+          (( need < 1 )) && need=1
+          for ((_p=0; _p<need; _p++)); do pad+=" "; done
+          local vcolor=244
+          case $sv in
+            "no updates"|"updated to "*) vcolor=108 ;;
+            "update available"|*"available") vcolor=214 ;;
+            "checking..."*)                  vcolor=109 ;;
+            true)                            vcolor=108 ;;
+            false)                           vcolor=244 ;;
+            "press enter")                   vcolor=244 ;;
+          esac
+          if (( i == ssel )); then
+            print -P "  %F{214}${sl}%f${pad}%F{${vcolor}}${sv}%f"$'\e[K'
+          else
+            print -P "  ${sl}${pad}%F{${vcolor}}${sv}%f"$'\e[K'
+          fi
+          if [[ ${settings_types[i]} == action && i -lt scount ]]; then
+            print -P ""$'\e[K'
+          fi
+        done
+        print -P ""$'\e[K'
+        print -P "%F{244}↑↓ navigate · Enter toggle · ← back · Esc quit%f"$'\e[K'
+      fi
+      printf '\e[J'
+    fi
+    # Run deferred update check now so "checking..." has been drawn
+    if (( _wt_pending_check )); then
+      _wt_pending_check=0
+      _wt_check_now
+      continue
+    fi
+    # Read with animation timeout when focused; block longer when blurred
+    local _timeout
+    if (( focused )); then _timeout=0.25; else _timeout=5; fi
+    if ! read -t $_timeout -k1 -s key 2>/dev/null; then
+      (( focused )) && (( frame++ ))
       continue
     fi
     seq=$key
@@ -197,17 +309,38 @@ else
         [[ ${#seq} -ge 3 ]] && break
       done
     fi
-    case $seq in
-      $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
-      $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
-      $'\e'|q|Q) aborted=1; break ;;
-      $'\n'|$'\r') break ;;
-      ' ') _robot_state=slot; _robot_t=0; _robot_dur=25 ;;
-    esac
-    (( frame++ ))
+    if [[ $mode == list ]]; then
+      case $seq in
+        $'\e[I') focused=1 ;;
+        $'\e[O') focused=0 ;;
+        $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
+        $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
+        $'\e[C') mode=settings; ssel=1; printf '\e[H\e[J' ;;
+        $'\e'|q|Q) aborted=1; break ;;
+        $'\n'|$'\r') break ;;
+        ' ')
+          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=25; }
+          ;;
+      esac
+    else
+      case $seq in
+        $'\e[I') focused=1 ;;
+        $'\e[O') focused=0 ;;
+        $'\e[A'|k) (( ssel = ssel == 1 ? scount : ssel - 1 )) ;;
+        $'\e[B'|j) (( ssel = ssel == scount ? 1 : ssel + 1 )) ;;
+        $'\n'|$'\r'|' ')
+          _wt_setting_toggle ${settings_keys[ssel]} ${settings_types[ssel]}
+          _wt_save_settings
+          ;;
+        $'\e[D'|h) mode=list; printf '\e[H\e[J' ;;
+        $'\e'|q|Q) mode=list; printf '\e[H\e[J' ;;
+      esac
+    fi
+    (( focused )) && (( frame++ ))
   done
-  # Leave alternate screen + show cursor
-  printf '\e[?25h\e[?1049l'
+  # Leave alternate screen + show cursor + restore terminal
+  printf '\e[?25h\e[?1049l\e[?1004l'
+  [[ -n $_wt_stty ]] && stty "$_wt_stty" 2>/dev/null
   trap - EXIT INT TERM
   (( aborted )) && return 1
   pick=${items[sel]}

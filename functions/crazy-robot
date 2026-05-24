@@ -31,7 +31,9 @@ $'  .-----.\n  [O   O]\n   |===|\n   \'   \''
 
 # Pick new state when current expires
 if (( _robot_t >= _robot_dur )); then
-  local -a states=(walk walk static blink wave sleep surprise smile dance jump slot)
+  # Slot machine intentionally excluded — only triggered by Space (easter egg)
+  local -a states=(walk walk static blink wave sleep surprise smile dance jump)
+  [[ $_robot_state == slot ]] && states=(walk)
   _robot_state=${states[$((RANDOM % ${#states} + 1))]}
   _robot_t=0
   _robot_dur=$(( 4 + RANDOM % 9 ))
@@ -133,4 +135,6 @@ local orange=$'\e[38;5;208m'
 local accent=$'\e[38;5;'"$color"'m'
 local reset=$'\e[39m'
 local highlighted=${body//(#b)\[([^]]*)\]/\[${accent}${match[1]}${orange}\]}
-printf '%s%s%s%s\n' "$orange" "$pad" "$highlighted" "$reset"
+# Append \e[K to every line so each row clears its tail when redrawn
+highlighted=${highlighted//$'\n'/$'\e[K\n'}
+printf '%s%s%s%s\e[K\n' "$orange" "$pad" "$highlighted" "$reset"
