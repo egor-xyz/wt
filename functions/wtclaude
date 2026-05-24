@@ -8,14 +8,76 @@ setopt extended_glob no_xtrace no_verbose typeset_silent
 local dir=~/.claude/sessions
 [[ -d $dir ]] || { echo "no $dir"; return 1; }
 
-local lines
-lines=$(for f in $dir/*.json(N); do
+# Update check (background, cached). Sets _wt_update_tag if newer tag found.
+local _wt_update_tag=""
+if [[ ${WTCLAUDE_UPDATE_CHECK:-0} == 1 || ${WTCLAUDE_AUTO_UPDATE:-0} == 1 ]] \
+   && [[ -d $WTCLAUDE_DIR/.git ]]; then
+  local _wt_cache=${XDG_CACHE_HOME:-$HOME/.cache}/wtclaude
+  mkdir -p "$_wt_cache" 2>/dev/null
+  local _wt_status=$_wt_cache/update-status _wt_stamp=$_wt_cache/last-check
+  local _wt_now=$(date +%s) _wt_last=0
+  [[ -r $_wt_stamp ]] && _wt_last=$(<$_wt_stamp)
+  local _wt_iv=${WTCLAUDE_CHECK_INTERVAL:-3600}
+  if (( _wt_now - _wt_last > _wt_iv )); then
+    (
+      git -C "$WTCLAUDE_DIR" fetch --quiet origin main 2>/dev/null || exit 0
+      local lh=$(git -C "$WTCLAUDE_DIR" rev-parse HEAD 2>/dev/null)
+      local rh=$(git -C "$WTCLAUDE_DIR" rev-parse origin/main 2>/dev/null)
+      if [[ -n $lh && -n $rh && $lh != $rh ]] \
+         && git -C "$WTCLAUDE_DIR" merge-base --is-ancestor "$lh" "$rh" 2>/dev/null; then
+        git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null > "$_wt_status"
+      else
+        : > "$_wt_status"
+      fi
+      echo "$_wt_now" > "$_wt_stamp"
+    ) &!
+  fi
+  [[ -s $_wt_status ]] && _wt_update_tag=$(<$_wt_status)
+  if [[ -n $_wt_update_tag && ${WTCLAUDE_AUTO_UPDATE:-0} == 1 ]]; then
+    git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null && {
+      : > "$_wt_status"
+      _wt_update_tag=""
+    }
+  fi
+fi
+
+local live
+live=$(for f in $dir/*.json(N); do
   jq -r 'select(.pid != null) | "\(.updatedAt)\t\(.pid)\t\(.cwd)\t\(.name // "-")"' "$f" 2>/dev/null
 done | while IFS=$'\t' read -r ts pid cwd name; do
   kill -0 "$pid" 2>/dev/null && printf '%s\t%s\t%s\t%s\n' "$ts" "$pid" "$cwd" "$name"
 done | sort -rn | awk -F'\t' '!seen[$3]++')
 
-[[ -z $lines ]] && { echo "no live claude sessions"; return 1; }
+[[ -z $live ]] && { echo "no live claude sessions"; return 1; }
+
+# Derive repo roots from live cwds (strip /.claude/worktrees/<name>)
+local -A repos seen_cwd
+local l_ts l_pid l_cwd l_name repo_root
+while IFS=$'\t' read -r l_ts l_pid l_cwd l_name; do
+  [[ -z $l_cwd ]] && continue
+  seen_cwd[$l_cwd]=1
+  repo_root=$l_cwd
+  [[ $l_cwd == */.claude/worktrees/* ]] && repo_root=${l_cwd%/.claude/worktrees/*}
+  repos[$repo_root]=1
+done <<< "$live"
+
+# Append idle worktrees for each known repo + synthesize repo-root entry if missing
+local idle="" wt
+for repo_root in ${(k)repos}; do
+  if [[ -z ${seen_cwd[$repo_root]} && -d $repo_root ]]; then
+    local mt0=$(zstat -L +mtime -- "$repo_root" 2>/dev/null || stat -f %m "$repo_root" 2>/dev/null || echo 0)
+    idle+="${mt0}000	0	$repo_root	-"$'\n'
+    seen_cwd[$repo_root]=1
+  fi
+  for wt in $repo_root/.claude/worktrees/*(N/); do
+    [[ -n ${seen_cwd[$wt]} ]] && continue
+    local mt=$(zstat -L +mtime -- "$wt" 2>/dev/null || stat -f %m "$wt" 2>/dev/null || echo 0)
+    idle+="${mt}000	0	$wt	-"$'\n'
+  done
+done
+
+local lines="$live"
+[[ -n $idle ]] && lines+=$'\n'"${idle%$'\n'}"
 
 # Group by repo (strip /.claude/worktrees/<name>). Repo root first, then
 # worktrees indented. Repos ordered by newest activity. Output: cwd<TAB>name<TAB>indent
@@ -63,10 +125,6 @@ done
 local pick
 if (( count == 1 )); then
   pick=${items[1]}
-elif command -v fzf >/dev/null; then
-  pick=$(printf '%s\n' "${items[@]}" | column -ts $'\t' | fzf --height=40% --reverse --prompt="claude> ")
-  [[ -z $pick ]] && return 1
-  pick=${items[$(printf '%s\n' "${items[@]}" | column -ts $'\t' | grep -nFx "$pick" | cut -d: -f1)]}
 else
   local sel=1 key seq aborted=0 frame=0
   # Robot state — managed by cdclaude_robot component
@@ -81,12 +139,24 @@ else
     # Header — animated robot component
     local cols=${COLUMNS:-80}
     local track=$(( cols > 30 ? 30 : cols - 12 ))
-    crazy-robot $track
-    # Separator line under animation
+    if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+      crazy-robot $track
+    fi
+    # Separator line — version on right, update tag on left if present
     local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
+    local vtag=""
+    [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
+    local utag=""
+    [[ -n $_wt_update_tag ]] && utag=" ↑ ${_wt_update_tag} available "
+    local plain_w=$(( sep_w - ${#vtag} - ${#utag} - 2 ))
+    (( plain_w < 0 )) && plain_w=0
     local sep=""
-    for ((_s=0; _s<sep_w; _s++)); do sep+="─"; done
-    print -P "%F{240}${sep}%f"
+    for ((_s=0; _s<plain_w; _s++)); do sep+="─"; done
+    if [[ -n $utag ]]; then
+      print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%F{240}─%f"
+    else
+      print -P "%F{240}─${sep}%F{238}${vtag}%F{240}─%f"
+    fi
     for ((i=1; i<=count; i++)); do
       local row=${items[i]}
       local -a fields=(${(s:	:)row})
@@ -103,11 +173,15 @@ else
         else
           prefix="%F{244}├─%f "
         fi
-      fi
-      if (( i == sel )); then
-        print -P "${prefix}%F{214}${label}%f  %F{244}(${rname})%f"
       else
-        print -P "${prefix}${label}  %F{244}(${rname})%f"
+        prefix="%F{244}•%f "
+      fi
+      local suffix=""
+      [[ -n $rname && $rname != "-" ]] && suffix="  %F{244}(${rname})%f"
+      if (( i == sel )); then
+        print -P "${prefix}%F{214}${label}%f${suffix}"
+      else
+        print -P "${prefix}${label}${suffix}"
       fi
     done
     # Read with animation timeout — tick frame when no key arrives
