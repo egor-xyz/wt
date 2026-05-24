@@ -196,10 +196,8 @@ else
     esac
   }
 
-  local _wt_stty=$(stty -g 2>/dev/null)
-  stty -echo 2>/dev/null
   printf '\e[?1049h\e[?25l\e[?1004h'
-  trap 'printf "\e[?25h\e[?1049l\e[?1004l"; [[ -n $_wt_stty ]] && stty "$_wt_stty" 2>/dev/null' EXIT INT TERM
+  trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
   while true; do
     if (( focused )); then
       printf '\e[H'
@@ -342,7 +340,6 @@ else
   done
   # Leave alternate screen + show cursor + restore terminal
   printf '\e[?25h\e[?1049l\e[?1004l'
-  [[ -n $_wt_stty ]] && stty "$_wt_stty" 2>/dev/null
   trap - EXIT INT TERM
   (( aborted )) && return 1
   pick=${items[sel]}
