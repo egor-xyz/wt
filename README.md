@@ -51,7 +51,10 @@ A robot does a little dance while you pick. 🤖
 curl -fsSL https://raw.githubusercontent.com/egor-xyz/wtclaude/main/install.sh | bash
 ```
 
-Re-run the same line later to update.
+Re-run the same line later to update — the installer pins your local
+copy to the latest [GitHub Release](https://github.com/egor-xyz/wtclaude/releases)
+tag, so you always land on a published, version-tagged commit (never an
+unreleased `main`).
 
 ### Plugin manager
 
@@ -149,9 +152,7 @@ All optional. Set in `~/.zshrc` before sourcing the plugin.
 | Variable                   | Default | Effect                                                                                                  |
 | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
 | `WTCLAUDE_NO_ROBOT`        | `0`     | `1` hides the robot mascot (faster, less whimsical).                                                    |
-| `WTCLAUDE_UPDATE_CHECK`    | `0`     | `1` checks origin/main in the background; shows `↑ vX.Y.Z available` on the separator when behind.     |
-| `WTCLAUDE_AUTO_UPDATE`     | `0`     | `1` auto-runs `git pull --ff-only` when an update is detected. Implies update check.                    |
-| `WTCLAUDE_CHECK_INTERVAL`  | `3600`  | Seconds between background update checks. Result cached under `$XDG_CACHE_HOME/wtclaude/`.              |
+| `WTCLAUDE_AUTO_UPDATE`     | `0`     | `1` fetches tags and checks out the latest GitHub Release in the background, once per launch. New version visible on next invocation. |
 
 ```zsh
 # example: silent robot, auto-update
@@ -161,13 +162,22 @@ export WTCLAUDE_AUTO_UPDATE=1
 
 ## 📦 Versioning
 
-Versions follow [Semantic Versioning](https://semver.org/) and are derived from
-the latest git tag at plugin load (shown dim-grey on the picker's separator).
-Releases are fully automatic: push to `main` with [Conventional
-Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `feat!:`),
+Versions follow [Semantic Versioning](https://semver.org/) and are derived
+from the closest annotated tag at plugin load (shown dim-grey on the picker's
+separator).
+
+Both the installer and the in-shell updater pin to the **latest published
+[GitHub Release](https://github.com/egor-xyz/wtclaude/releases)** — never the
+tip of `main`. Pre-releases are skipped (the `/releases/latest` endpoint
+filters them out).
+
+Releases are cut automatically: PRs use [Conventional
+Commits](https://www.conventionalcommits.org/) titles (`feat:`, `fix:`,
+`feat!:`), and on push to `main`
 [`semantic-release`](https://github.com/semantic-release/semantic-release)
-analyzes commits, cuts a tag, and publishes a GitHub Release with grouped
-notes. No manual steps.
+analyzes the squash-merge subject, cuts a tag, and publishes a GitHub
+Release with grouped notes. A PR-title lint workflow rejects non-conforming
+titles before merge.
 
 ---
 

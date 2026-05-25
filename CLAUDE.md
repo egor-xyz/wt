@@ -99,3 +99,39 @@ Don't add a brew formula unless we cut tagged releases.
 - Commits use the `i@egor.xyz` identity locally (`git config user.email`
   set per-repo).
 - Default branch: `main`.
+
+## Releases (semantic-release)
+
+Releases are cut automatically by `.github/workflows/bump-version.yml` on
+every push to `main`. The workflow runs `semantic-release` with the
+`conventionalcommits` preset (config: `.releaserc.json`). The installer
+and the in-shell updater both pin to the latest GitHub Release tag, so
+a missing release means users do not get the change.
+
+**Conventional commit prefixes that bump versions:**
+
+| Prefix     | Bump  |
+|------------|-------|
+| `feat:`    | minor |
+| `fix:`     | patch |
+| `perf:`    | patch |
+| `BREAKING CHANGE:` in body, or `feat!:` / `fix!:` | major |
+| `chore:` / `docs:` / `refactor:` / `test:` / `ci:` / `build:` / `style:` | **no release** |
+
+**The squash-merge subject must carry the prefix.** GitHub's default
+squash setting uses the PR title as the commit subject — so the PR
+*title* must be a conventional commit. A `feat:` prefix on the local
+branch commit is dropped during squash if the PR title doesn't have it.
+
+Rules when opening a PR:
+
+1. PR title starts with `feat:` / `fix:` / `chore:` / etc. — same form
+   as the commit subject would take.
+2. If the change ships user-visible behavior, use `feat:` or `fix:`.
+3. If the change is internal (CI, docs, refactor, deps), use a no-release
+   prefix on purpose — semantic-release will skip it, which is correct.
+4. After merge, check the `Release` workflow run. If it logs
+   `Analysis of N commits complete: no release` when you expected one,
+   the PR title was wrong. Recover by pushing an empty `feat:`/`fix:`
+   commit to `main` (`git commit --allow-empty -m '…'`) or by cutting
+   the release manually via `gh release create`.
