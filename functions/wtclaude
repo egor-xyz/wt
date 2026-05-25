@@ -201,31 +201,41 @@ else
   printf '\e[?1049h\e[?25l\e[?1004h'
   trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
   while true; do
-    if (( focused )); then
+    if (( focused )) || [[ $mode == robot ]]; then
       printf '\e[H'
       local cols=${COLUMNS:-80}
-      local track=$(( cols > 30 ? 30 : cols - 12 ))
+      local track
+      if [[ $mode == robot ]]; then
+        track=$(( cols - 2 ))
+        (( track < 10 )) && track=10
+      else
+        track=$(( cols > 30 ? 30 : cols - 12 ))
+      fi
       if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
         crazy-robot $track
       fi
-      local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
-      local vtag=""
-      [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
-      local utag=""
-      [[ -n $_wt_update_tag ]] && utag=" ↑ ${_wt_update_tag} available "
-      local plain_w=$(( sep_w - ${#vtag} - ${#utag} - 2 ))
-      (( plain_w < 0 )) && plain_w=0
-      local sep=""
-      for ((_s=0; _s<plain_w; _s++)); do sep+="─"; done
-      if [[ -n $utag ]]; then
-        print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%f"$'\e[K'
-      else
-        print -P "%F{240}─${sep}%F{238}${vtag}%f"$'\e[K'
+      if [[ $mode != robot ]]; then
+        local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
+        local vtag=""
+        [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
+        local utag=""
+        [[ -n $_wt_update_tag ]] && utag=" ↑ ${_wt_update_tag} available "
+        local plain_w=$(( sep_w - ${#vtag} - ${#utag} - 2 ))
+        (( plain_w < 0 )) && plain_w=0
+        local sep=""
+        for ((_s=0; _s<plain_w; _s++)); do sep+="─"; done
+        if [[ -n $utag ]]; then
+          print -P "%F{240}─%F{208}${utag}%F{240}${sep}%F{238}${vtag}%f"$'\e[K'
+        else
+          print -P "%F{240}─${sep}%F{238}${vtag}%f"$'\e[K'
+        fi
+        if [[ -n $_wt_restart_tag ]]; then
+          print -P "%F{109}  ↻ v${_wt_restart_tag} ready · restart shell to apply%f"$'\e[K'
+        fi
       fi
-      if [[ -n $_wt_restart_tag ]]; then
-        print -P "%F{109}  ↻ v${_wt_restart_tag} ready · restart shell to apply%f"$'\e[K'
-      fi
-      if [[ $mode == list ]]; then
+      if [[ $mode == robot ]]; then
+        :
+      elif [[ $mode == list ]]; then
         for ((i=1; i<=count; i++)); do
           local row=${items[i]}
           local -a fields=(${(s:	:)row})
@@ -254,7 +264,7 @@ else
           fi
         done
         print -P ""$'\e[K'
-        print -P "%F{244}↑↓ navigate · Enter pick · → settings · q to quit%f"$'\e[K'
+        print -P "%F{244}↑↓ navigate · Enter pick · ← robot · → settings · q to quit%f"$'\e[K'
       else
         # Settings panel
         print -P "%F{244}Settings%f"$'\e[K'
@@ -298,9 +308,9 @@ else
     fi
     # Read with animation timeout when focused; block longer when blurred
     local _timeout
-    if (( focused )); then _timeout=0.25; else _timeout=5; fi
+    if (( focused )) || [[ $mode == robot ]]; then _timeout=0.25; else _timeout=5; fi
     if ! read -t $_timeout -k1 -s key 2>/dev/null; then
-      (( focused )) && (( frame++ ))
+      { (( focused )) || [[ $mode == robot ]]; } && (( frame++ ))
       continue
     fi
     seq=$key
@@ -311,13 +321,24 @@ else
         [[ ${#seq} -ge 3 ]] && break
       done
     fi
-    if [[ $mode == list ]]; then
+    if [[ $mode == robot ]]; then
+      case $seq in
+        $'\e[I') focused=1 ;;
+        $'\e[O') focused=0 ;;
+        $'\e[C'|l) mode=list; printf '\e[H\e[J' ;;
+        $'\e'|q|Q) aborted=1; break ;;
+        ' ')
+          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=45; }
+          ;;
+      esac
+    elif [[ $mode == list ]]; then
       case $seq in
         $'\e[I') focused=1 ;;
         $'\e[O') focused=0 ;;
         $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
         $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
         $'\e[C') mode=settings; ssel=1; printf '\e[H\e[J' ;;
+        $'\e[D'|h) mode=robot; printf '\e[H\e[J' ;;
         $'\e'|q|Q) aborted=1; break ;;
         $'\n'|$'\r') break ;;
         ' ')
@@ -338,7 +359,7 @@ else
         $'\e'|q|Q) mode=list; printf '\e[H\e[J' ;;
       esac
     fi
-    (( focused )) && (( frame++ ))
+    { (( focused )) || [[ $mode == robot ]]; } && (( frame++ ))
   done
   # Leave alternate screen + show cursor + restore terminal
   printf '\e[?25h\e[?1049l\e[?1004l'
