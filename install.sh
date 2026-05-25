@@ -8,12 +8,27 @@ REPO="https://github.com/egor-xyz/wtclaude.git"
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 LINE="source \"$DEST/wtclaude.plugin.zsh\""
 
+RELEASES_API="https://api.github.com/repos/egor-xyz/wtclaude/releases/latest"
+
+latest_release_tag() {
+  curl -fsSL --max-time 10 "$RELEASES_API" 2>/dev/null \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1
+}
+
 if [ -d "$DEST/.git" ]; then
   echo "→ updating $DEST"
-  git -C "$DEST" pull --ff-only
+  git -C "$DEST" fetch --tags --quiet origin
 else
   echo "→ cloning into $DEST"
-  git clone --depth 1 "$REPO" "$DEST"
+  git clone --quiet "$REPO" "$DEST"
+fi
+
+LATEST=$(latest_release_tag)
+if [ -n "$LATEST" ]; then
+  echo "→ checking out release $LATEST"
+  git -C "$DEST" checkout --quiet "$LATEST"
+else
+  echo "⚠  could not resolve latest release (no network or API limit); leaving HEAD as-is"
 fi
 
 if [ ! -f "$ZSHRC" ] || ! grep -qsF "$LINE" "$ZSHRC"; then

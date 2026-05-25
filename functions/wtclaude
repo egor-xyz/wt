@@ -19,12 +19,19 @@ fi
 local dir=~/.claude/sessions
 [[ -d $dir ]] || { echo "no $dir"; return 1; }
 
-# One-shot auto-update: fetch + ff-only pull in background, once per launch.
-# No cache, no polling. New version visible on next invocation.
+# One-shot auto-update: fetch tags + checkout latest GitHub release in
+# background, once per launch. No cache, no polling. Stable releases only —
+# pre-releases ignored (GitHub's /releases/latest endpoint already filters).
+# New version visible on next invocation.
 local _wt_update_tag=""
+local _WT_RELEASES_API="https://api.github.com/repos/egor-xyz/wtclaude/releases/latest"
 if [[ ${WTCLAUDE_AUTO_UPDATE:-0} == 1 && -d $WTCLAUDE_DIR/.git ]]; then
-  ( git -C "$WTCLAUDE_DIR" fetch --quiet --tags origin main 2>/dev/null \
-    && git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null ) &!
+  (
+    git -C "$WTCLAUDE_DIR" fetch --quiet --tags --force origin 2>/dev/null || exit
+    local _lt=$(curl -fsSL --max-time 5 "$_WT_RELEASES_API" 2>/dev/null \
+      | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+    [[ -n $_lt ]] && git -C "$WTCLAUDE_DIR" checkout --quiet "$_lt" 2>/dev/null
+  ) &!
 fi
 
 local live
@@ -153,37 +160,32 @@ else
   }
   _wt_check_now() {
     local old_ver=$WTCLAUDE_VERSION
-    git -C "$WTCLAUDE_DIR" fetch --quiet --tags --force origin main 2>/dev/null
-    local lh=$(git -C "$WTCLAUDE_DIR" rev-parse HEAD 2>/dev/null)
-    local rh=$(git -C "$WTCLAUDE_DIR" rev-parse origin/main 2>/dev/null)
-    if [[ -n $lh && -n $rh && $lh != $rh ]] \
-       && git -C "$WTCLAUDE_DIR" merge-base --is-ancestor "$lh" "$rh" 2>/dev/null; then
-      if git -C "$WTCLAUDE_DIR" pull --ff-only --quiet origin main 2>/dev/null; then
-        local newtag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 2>/dev/null)
-        _wt_update_tag=""
-        WTCLAUDE_VERSION=${newtag#v}
-        _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
-        # Refresh autoload so the NEXT `wtclaude` call runs the new code,
-        # not just the new version label. Current invocation finishes with
-        # the body it already has in memory — safe.
-        unfunction wtclaude crazy-robot 2>/dev/null
-        autoload -Uz wtclaude crazy-robot
-        WTCLAUDE_LOADED_AT=$(date +%s)
-      else
-        _wt_update_tag=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 origin/main 2>/dev/null)
-        _wt_check_msg="update available"
-      fi
-    else
-      # Commits already match — but a tag-only release may have arrived.
-      local new_ver=$(git -C "$WTCLAUDE_DIR" describe --tags --always --dirty 2>/dev/null)
-      new_ver=${new_ver#v}
+    git -C "$WTCLAUDE_DIR" fetch --quiet --tags --force origin 2>/dev/null
+    local latest=$(curl -fsSL --max-time 5 "$_WT_RELEASES_API" 2>/dev/null \
+      | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+    if [[ -z $latest ]]; then
+      _wt_check_msg="check failed"
+      return
+    fi
+    local clean=${latest#v}
+    if [[ $clean == $old_ver ]]; then
       _wt_update_tag=""
-      if [[ -n $new_ver && $new_ver != $old_ver ]]; then
-        WTCLAUDE_VERSION=$new_ver
-        _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
-      else
-        _wt_check_msg="no updates"
-      fi
+      _wt_check_msg="no updates"
+      return
+    fi
+    if git -C "$WTCLAUDE_DIR" checkout --quiet "$latest" 2>/dev/null; then
+      _wt_update_tag=""
+      WTCLAUDE_VERSION=$clean
+      _wt_check_msg="updated to v${WTCLAUDE_VERSION}"
+      # Refresh autoload so the NEXT `wtclaude` call runs the new code,
+      # not just the new version label. Current invocation finishes with
+      # the body it already has in memory — safe.
+      unfunction wtclaude crazy-robot 2>/dev/null
+      autoload -Uz wtclaude crazy-robot
+      WTCLAUDE_LOADED_AT=$(date +%s)
+    else
+      _wt_update_tag=$latest
+      _wt_check_msg="update available"
     fi
   }
   _wt_setting_toggle() {

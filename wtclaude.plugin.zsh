@@ -2,8 +2,13 @@
 # Compatible with antidote, antigen, zinit, sheldon, oh-my-zsh custom plugins.
 0=${(%):-%N}
 WTCLAUDE_DIR=${0:A:h}
-WTCLAUDE_VERSION=$(git -C "$WTCLAUDE_DIR" describe --tags --always --dirty 2>/dev/null)
+WTCLAUDE_VERSION=$(git -C "$WTCLAUDE_DIR" describe --tags --abbrev=0 2>/dev/null \
+  || git -C "$WTCLAUDE_DIR" describe --tags --always 2>/dev/null)
 WTCLAUDE_VERSION=${WTCLAUDE_VERSION#v}
+# Backfill tags on shallow clones so future invocations show real version.
+if [[ -f $WTCLAUDE_DIR/.git/shallow ]]; then
+  ( git -C "$WTCLAUDE_DIR" fetch --unshallow --tags --quiet 2>/dev/null ) &!
+fi
 # Load persisted settings (overrides env defaults)
 _wtclaude_cfg=${XDG_CONFIG_HOME:-$HOME/.config}/wtclaude/settings
 [[ -r $_wtclaude_cfg ]] && source "$_wtclaude_cfg"
