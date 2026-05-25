@@ -120,6 +120,7 @@ if (( count == 1 )); then
   pick=${items[1]}
 else
   local sel=1 key seq aborted=0 frame=0 focused=1 mode=list ssel=1
+  local _prev_lines=0 _prev_cols=0
   local -a settings_keys settings_labels settings_types settings_enum
   settings_keys=(_WT_CHECK_NOW WTCLAUDE_NO_ROBOT WTCLAUDE_AUTO_UPDATE)
   settings_labels=("Check for updates" "Robot animation" "Auto-update")
@@ -202,12 +203,25 @@ else
   trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
   while true; do
     if (( focused )) || [[ $mode == robot ]]; then
+      # Query terminal size directly; $LINES/$COLUMNS may not refresh
+      # inside a running zsh function on SIGWINCH.
+      local _sz="$(stty size 2>/dev/null)"
+      local rows=${${_sz%% *}:-${LINES:-24}}
+      local cols=${${_sz##* }:-${COLUMNS:-80}}
+      if (( cols != _prev_cols || rows != _prev_lines )); then
+        printf '\e[2J'
+        _prev_cols=$cols
+        _prev_lines=$rows
+      fi
       printf '\e[H'
-      local cols=${COLUMNS:-80}
       local track
       if [[ $mode == robot ]]; then
         track=$(( cols - 2 ))
         (( track < 10 )) && track=10
+        local pad_top=$(( (rows - 4) / 2 ))
+        (( pad_top < 0 )) && pad_top=0
+        local _i
+        for ((_i=0; _i<pad_top; _i++)); do printf '\e[K\n'; done
       else
         track=$(( cols > 30 ? 30 : cols - 12 ))
       fi
@@ -325,6 +339,7 @@ else
       case $seq in
         $'\e[I') focused=1 ;;
         $'\e[O') focused=0 ;;
+        $'\e[A'|$'\e[B'|k|j) ;;
         $'\e[C'|l) mode=list; printf '\e[H\e[J' ;;
         $'\e'|q|Q) aborted=1; break ;;
         ' ')
