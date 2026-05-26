@@ -18,17 +18,7 @@ You `cd` into the wrong one. You curse.
 **`wtclaude` finds them all, groups them, and `cd`s you into the right one.**
 A robot does a little dance while you pick. 🤖
 
-```
-   .-----.
-   [o   o]
-   /|===|\
-    o   o
- ───────────────────────────────────────────────────────  v0.1.0 ─
-  ~/code/myproject
-  ├─ feature-login     (login flow refactor)
-  ├─ bugfix-cache      (cache invalidation)
-  └─ exp-new-router    (router experiment)
-```
+<img width="1280" height="640" alt="wtclaude" src="https://github.com/user-attachments/assets/1d1b6066-c4e0-42bb-a2ec-eef0b24fcb99" />
 
 ---
 
