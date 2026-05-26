@@ -5,6 +5,73 @@
 emulate -L zsh
 setopt extended_glob no_xtrace no_verbose typeset_silent
 
+# `wtclaude robot` — pure robot screensaver. No session scan, no list/settings.
+# Only robot animations: ↑↓ cycle states, space = slot, q/Esc quits.
+if [[ $1 == robot ]]; then
+  if [[ ${WTCLAUDE_NO_ROBOT:-0} == 1 ]]; then
+    echo "robot animation disabled (WTCLAUDE_NO_ROBOT=1)"
+    return 1
+  fi
+  local key seq focused=1 _prev_lines=0 _prev_cols=0
+  local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1 _robot_mirror=0
+  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek slot)
+  local rcount=${#robot_order} rsel=1
+  local _robot_lock_ts=$SECONDS
+  autoload -Uz crazy-robot
+  printf '\e[?1049h\e[?25l\e[?1004h'
+  trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
+  while true; do
+    # Release a locked pose back to wander after 30s idle.
+    if (( _robot_dur == 99999 && SECONDS - _robot_lock_ts >= 30 )); then
+      _robot_dur=6; _robot_t=99999
+    fi
+    local _sz="$(stty size 2>/dev/null)"
+    local rows=${${_sz%% *}:-${LINES:-24}}
+    local cols=${${_sz##* }:-${COLUMNS:-80}}
+    if (( cols != _prev_cols || rows != _prev_lines )); then
+      printf '\e[2J'; _prev_cols=$cols; _prev_lines=$rows
+    fi
+    printf '\e[H'
+    local track=$(( cols - 2 )); (( track < 10 )) && track=10
+    local pad_top=$(( (rows - 4) / 2 )); (( pad_top < 0 )) && pad_top=0
+    local _i; for ((_i=0; _i<pad_top; _i++)); do printf '\e[K\n'; done
+    crazy-robot $track
+    printf '\e[J'
+    if ! read -t 0.25 -k1 -s key 2>/dev/null; then
+      continue
+    fi
+    seq=$key
+    if [[ $key == $'\e' ]]; then
+      local c
+      while read -t 0.05 -k1 -s c 2>/dev/null; do
+        seq+=$c
+        [[ ${#seq} -ge 3 ]] && break
+      done
+    fi
+    case $seq in
+      $'\e[I') focused=1 ;;
+      $'\e[O') focused=0 ;;
+      $'\e[A'|k)
+        (( rsel = rsel == 1 ? rcount : rsel - 1 ))
+        _robot_state=${robot_order[rsel]}; _robot_t=0; _robot_dur=99999
+        _robot_lock_ts=$SECONDS
+        _robot_pos=$(( (cols - 22) / 2 )); (( _robot_pos < 0 )) && _robot_pos=0
+        ;;
+      $'\e[B'|j)
+        (( rsel = rsel == rcount ? 1 : rsel + 1 ))
+        _robot_state=${robot_order[rsel]}; _robot_t=0; _robot_dur=99999
+        _robot_lock_ts=$SECONDS
+        _robot_pos=$(( (cols - 22) / 2 )); (( _robot_pos < 0 )) && _robot_pos=0
+        ;;
+      ' ') _robot_state=slot; _robot_t=0; _robot_dur=45 ;;
+      $'\e'|q|Q) break ;;
+    esac
+  done
+  printf '\e[?25h\e[?1049l\e[?1004l'
+  trap - EXIT INT TERM
+  return 0
+fi
+
 # Detect whether installed copy is newer than the version this shell loaded.
 # If so, set _wt_restart_tag so the picker shows a "restart shell" banner.
 local _wt_restart_tag=""
