@@ -127,7 +127,10 @@ else
   settings_types=(action invbool bool)
   local scount=${#settings_keys}
   # Robot state
-  local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1
+  local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1 _robot_mirror=0
+  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek slot)
+  local rcount=${#robot_order} rsel=1
+  local _robot_lock_ts=$SECONDS
   autoload -Uz crazy-robot
 
   # Helper: persist current settings vars to ~/.config/wtclaude/settings
@@ -202,6 +205,9 @@ else
   printf '\e[?1049h\e[?25l\e[?1004h'
   trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
   while true; do
+    if [[ $mode == robot ]] && (( _robot_dur == 99999 && SECONDS - _robot_lock_ts >= 30 )); then
+      _robot_dur=6; _robot_t=99999
+    fi
     if (( focused )) || [[ $mode == robot ]]; then
       # Query terminal size directly; $LINES/$COLUMNS may not refresh
       # inside a running zsh function on SIGWINCH.
@@ -223,13 +229,14 @@ else
         local _i
         for ((_i=0; _i<pad_top; _i++)); do printf '\e[K\n'; done
       else
-        track=$(( cols > 30 ? 30 : cols - 12 ))
+        track=$(( cols - 12 ))
+        (( track < 10 )) && track=10
       fi
       if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
         crazy-robot $track
       fi
       if [[ $mode != robot ]]; then
-        local sep_w=$(( cols > 60 ? 60 : cols - 2 ))
+        local sep_w=$(( cols - 2 ))
         local vtag=""
         [[ -n $WTCLAUDE_VERSION ]] && vtag=" v${WTCLAUDE_VERSION} "
         local utag=""
@@ -278,7 +285,11 @@ else
           fi
         done
         print -P ""$'\e[K'
-        print -P "%F{244}↑↓ navigate · Enter pick · ← robot · → settings · q to quit%f"$'\e[K'
+        if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+          print -P "%F{244}↑↓ navigate · Enter pick · ← robot · → settings · q to quit%f"$'\e[K'
+        else
+          print -P "%F{244}↑↓ navigate · Enter pick · → settings · q to quit%f"$'\e[K'
+        fi
       else
         # Settings panel
         print -P "%F{244}Settings%f"$'\e[K'
@@ -339,8 +350,21 @@ else
       case $seq in
         $'\e[I') focused=1 ;;
         $'\e[O') focused=0 ;;
-        $'\e[A'|$'\e[B'|k|j) ;;
-        $'\e[C'|l) mode=list; printf '\e[H\e[J' ;;
+        $'\e[A'|k)
+          (( rsel = rsel == 1 ? rcount : rsel - 1 ))
+          _robot_state=${robot_order[rsel]}; _robot_t=0; _robot_dur=99999
+          _robot_lock_ts=$SECONDS
+          local _c="$(stty size 2>/dev/null)"; _c=${_c##* }; _c=${_c:-${COLUMNS:-80}}
+          _robot_pos=$(( (_c - 22) / 2 )); (( _robot_pos < 0 )) && _robot_pos=0
+          ;;
+        $'\e[B'|j)
+          (( rsel = rsel == rcount ? 1 : rsel + 1 ))
+          _robot_state=${robot_order[rsel]}; _robot_t=0; _robot_dur=99999
+          _robot_lock_ts=$SECONDS
+          local _c="$(stty size 2>/dev/null)"; _c=${_c##* }; _c=${_c:-${COLUMNS:-80}}
+          _robot_pos=$(( (_c - 22) / 2 )); (( _robot_pos < 0 )) && _robot_pos=0
+          ;;
+        $'\e[C'|l) mode=list; _robot_dur=6; _robot_t=99999; printf '\e[H\e[J' ;;
         $'\e'|q|Q) aborted=1; break ;;
         ' ')
           [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=45; }
@@ -353,7 +377,9 @@ else
         $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
         $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
         $'\e[C') mode=settings; ssel=1; printf '\e[H\e[J' ;;
-        $'\e[D'|h) mode=robot; printf '\e[H\e[J' ;;
+        $'\e[D'|h)
+          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { mode=robot; printf '\e[H\e[J'; }
+          ;;
         $'\e'|q|Q) aborted=1; break ;;
         $'\n'|$'\r') break ;;
         ' ')

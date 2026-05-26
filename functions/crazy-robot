@@ -30,16 +30,45 @@ $'  .-----.\n  [- _ -]\n  /|━━━|\\\n   o   o'
 $'  .-----.\n  [O   O]\n  /|━O━|\\\n   o   o'
 $'  .-----.\n  [O   O]\n  /|━━━|\\\n   ~   ~'
 $'  .-----.\n  [O   O]\n   |━━━|\n   \'   \''
+$'  .-----.         🌙\n  [- - O]    ==o\n  /|━━━|\\    |\n   o   o    / \\'
+$'  .-----.   ·     🌙\n  [- - -]    ==o\n  /|━━━|\\    |\n   o   o    / \\'
+$'\n\n\n'
+$'  /\\   /\\\n  .-----.\n  [o   o]\n'
+$'  /\\   /\\\n  .-----.\n  [- - -]\n'
 )
 
 # Pick new state when current expires
 if (( _robot_t >= _robot_dur )); then
-  # Slot machine intentionally excluded — only triggered by Space (easter egg)
-  local -a states=(walk walk static blink wave sleep surprise smile dance jump)
-  [[ $_robot_state == slot ]] && states=(walk)
-  _robot_state=${states[$((RANDOM % ${#states} + 1))]}
+  # Walk between every other animation so the robot moves around.
+  # Slot machine intentionally excluded — only triggered by Space (easter egg).
+  if [[ $_robot_state != walk ]]; then
+    _robot_state=walk
+  else
+    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek)
+    _robot_state=${states[$((RANDOM % ${#states} + 1))]}
+  fi
   _robot_t=0
-  _robot_dur=$(( 4 + RANDOM % 9 ))
+  # Keep walk's final pos when switching to other states so the robot
+  # stays put. Only clamp wide props (moon) since plain robot frames
+  # already fit inside the walk track. catpeek picks its own pos per phase.
+  if [[ $_robot_state == moon ]]; then
+    local _w=20
+    (( _robot_pos > track - _w )) && _robot_pos=$(( track - _w ))
+    (( _robot_pos < 0 )) && _robot_pos=0
+  fi
+  # Per-state duration: short cycles repeat a few times, long cycles play 1-2x.
+  # Always a whole number of cycles so the animation never cuts mid-loop.
+  case $_robot_state in
+    walk)              _robot_dur=$(( 12 + RANDOM % 16 )) ;;  # wander 12-27
+    static|wave|smile) _robot_dur=$(( 12 + RANDOM % 10 )) ;;  # hold pose 12-21
+    sleep)             _robot_dur=$(( 16 + RANDOM % 12 )) ;;  # nap 16-27
+    surprise)          _robot_dur=$(( 6 + RANDOM % 6 )) ;;    # brief 6-11
+    blink|dance)       _robot_dur=$(( (6 + RANDOM % 6) * 2 )) ;; # 6-11 ping-pongs
+    jump)              _robot_dur=$(( (12 + RANDOM % 6) * 2 )) ;; # 12-17 jumps
+    moon)              _robot_dur=$(( (6 + RANDOM % 4) * 6 )) ;; # 6-9 blink cycles
+    catpeek)           _robot_dur=$(( (2 + RANDOM % 2) * 8 )) ;; # 2-3 peek loops
+    *)                 _robot_dur=$(( 8 + RANDOM % 18 )) ;;
+  esac
 fi
 
 local raw color
@@ -55,6 +84,8 @@ case $_robot_state in
   sleep)    color=63  ;;  # blue
   dance)    color=${rainbow[$((_robot_t % ${#rainbow} + 1))]} ;;
   jump)     color=${rainbow[$((_robot_t % ${#rainbow} + 1))]} ;;
+  moon)     color=75  ;;  # pale blue
+  catpeek)  color=213 ;;  # pink
   slot)     color=226 ;;  # yellow (jackpot overrides below)
 esac
 case $_robot_state in
@@ -72,6 +103,32 @@ case $_robot_state in
   sleep)    raw=${idle_frames[7]} ;;
   dance)    raw=${idle_frames[$((_robot_t % 2 == 0 ? 6 : 2))]} ;;
   jump)     raw=${idle_frames[$((_robot_t % 2 == 0 ? 9 : 10))]} ;;
+  moon)
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local -a moon_phases=('🌑' '🌒' '🌓' '🌔' '🌕' '🌖' '🌗' '🌘')
+    local _mp=${moon_phases[$(( _robot_t / 3 % ${#moon_phases} + 1 ))]}
+    local _eyes_r='- - O' _eyes_l='O - -' _spark=' '
+    if (( _robot_t % 6 == 5 )); then _eyes_r='- - -'; _eyes_l='- - -'; _spark='·'; fi
+    if (( _robot_mirror )); then
+      raw="${_mp}    ${_spark}     .-----."$'\n'"     o==    [${_eyes_l}]"$'\n'$'       |    /|━━━|\\'$'\n'$'      / \\    o   o'
+    else
+      raw="  .-----.   ${_spark}     ${_mp}"$'\n'"  [${_eyes_r}]    ==o"$'\n'$'  /|━━━|\\    |'$'\n'$'   o   o    / \\'
+    fi
+    ;;
+  catpeek)
+    local phase=$(( _robot_t % 8 ))
+    if (( phase == 0 )); then
+      # Frame is ~10 cols wide incl. leading pad; clamp so it never wraps.
+      local _cp_max=$(( track - 10 ))
+      (( _cp_max < 1 )) && _cp_max=1
+      _robot_pos=$(( RANDOM % _cp_max ))
+    fi
+    case $phase in
+      2|4) raw=${idle_frames[14]} ;;
+      3|5) raw=${idle_frames[15]} ;;
+      *)   raw=${idle_frames[13]} ;;
+    esac
+    ;;
   slot)
     # Reel symbols. 7️⃣ keycap is the jackpot — width matches the other 2-col
     # emojis in modern terminals.
@@ -83,6 +140,7 @@ case $_robot_state in
 
     # At tick 0, decide the final outcome.
     if (( _robot_t == 0 )); then
+      _robot_mirror=$(( RANDOM % 2 ))
       _robot_locked=""
       _robot_f1=${syms[$((RANDOM % ${#syms} + 1))]}
       _robot_f2=${syms[$((RANDOM % ${#syms} + 1))]}
@@ -186,11 +244,44 @@ case $_robot_state in
     # Machine on the left, robot pinned to absolute column on the right.
     # The trailing \e[K after the machine clears any stale chars (from the
     # previous frame's lever extension) before the robot is drawn.
-    local rc=18
-    printf '%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$sc" "$m1" "$reset" "$rc" "$orange" "${r_lines[1]}" "$reset"
-    printf '%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$sc" "$m2" "$reset" "$rc" "$orange" "${r_lines[2]}" "$reset"
-    printf '%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$sc" "$m3" "$reset" "$rc" "$orange" "${r_lines[3]}" "$reset"
-    printf '%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$sc" "$m4" "$reset" "$rc" "$orange" "${r_lines[4]}" "$reset"
+    # Total render width ~28 cols (machine 16 + gap + robot ~10). Center
+    # the pair horizontally using track (cols - 12 from caller).
+    if (( _robot_mirror )); then
+      # Mirror layout: robot on left, machine on right, lever on left side of
+      # machine ending with knob `o` toward robot (4-col gap reserves space).
+      local _slot_off=$(( (track - 30) / 2 ))
+      (( _slot_off < 0 )) && _slot_off=0
+      local _spad=""
+      local _sp; for ((_sp=0; _sp<_slot_off; _sp++)); do _spad+=" "; done
+      local mm1 mm2 mm3 mm4
+      if (( _robot_t == 0 )); then
+        mm1="  o ${base1}"
+        mm2="   \\${base2}"
+        mm3="    ${base3}"
+        mm4="    ${base4}"
+      else
+        mm1="    ${base1}"
+        mm2="    ${base2}"
+        mm3="o---${base3}"
+        mm4="    ${base4}"
+      fi
+      local _ml=$(( _slot_off + 10 ))
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$orange" "${r_lines[1]}" "$reset" "$_ml" "$sc" "$mm1" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$orange" "${r_lines[2]}" "$reset" "$_ml" "$sc" "$mm2" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$orange" "${r_lines[3]}" "$reset" "$_ml" "$sc" "$mm3" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$orange" "${r_lines[4]}" "$reset" "$_ml" "$sc" "$mm4" "$reset"
+    else
+      # 32-col total layout: machine 0-15, lever 16-19 (`---o`), gap 20-21, robot 22-31.
+      local _slot_off=$(( (track - 32) / 2 ))
+      (( _slot_off < 0 )) && _slot_off=0
+      local _spad=""
+      local _sp; for ((_sp=0; _sp<_slot_off; _sp++)); do _spad+=" "; done
+      local rc=$(( _slot_off + 22 ))
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$sc" "$m1" "$reset" "$rc" "$orange" "${r_lines[1]}" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$sc" "$m2" "$reset" "$rc" "$orange" "${r_lines[2]}" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$sc" "$m3" "$reset" "$rc" "$orange" "${r_lines[3]}" "$reset"
+      printf '%s%s%s%s\e[K\e[%dG%s%s%s\e[K\n' "$_spad" "$sc" "$m4" "$reset" "$rc" "$orange" "${r_lines[4]}" "$reset"
+    fi
     (( _robot_t++ ))
     return
     ;;
