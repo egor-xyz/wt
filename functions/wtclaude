@@ -187,7 +187,7 @@ if (( count == 1 )); then
   pick=${items[1]}
 else
   local sel=1 key seq aborted=0 frame=0 focused=1 mode=list ssel=1
-  local _prev_lines=0 _prev_cols=0
+  local _prev_lines=0 _prev_cols=0 _list_off=0
   local -a settings_keys settings_labels settings_types settings_enum
   settings_keys=(_WT_CHECK_NOW WTCLAUDE_NO_ROBOT WTCLAUDE_AUTO_UPDATE)
   settings_labels=("Check for updates" "Robot animation" "Auto-update")
@@ -199,6 +199,30 @@ else
   local rcount=${#robot_order} rsel=1
   local _robot_lock_ts=$SECONDS
   autoload -Uz crazy-robot
+
+  # Type-to-filter: query matched as a case-insensitive substring against each
+  # item's display label (worktree/repo name + optional session name). midx
+  # holds the indices of items[] that match; sel indexes into midx.
+  local query=""
+  local -a midx
+  local mcount=$count
+  _wt_filter() {
+    midx=()
+    local qq=${query:l} j lab
+    local -a ff
+    for ((j=1; j<=count; j++)); do
+      ff=(${(s:	:)items[j]})
+      lab=${ff[1]}
+      if [[ ${ff[1]} == */worktrees/* ]]; then
+        lab=${ff[1]##*/worktrees/}; lab=${lab%%/*}
+      fi
+      [[ -n ${ff[2]} && ${ff[2]} != - ]] && lab+=" ${ff[2]}"
+      [[ -z $qq || ${lab:l} == *$qq* ]] && midx+=$j
+    done
+    mcount=${#midx}
+    (( sel > mcount )) && sel=$mcount
+    (( sel < 1 )) && sel=1
+  }
 
   # Helper: persist current settings vars to ~/.config/wtclaude/settings
   _wt_save_settings() {
@@ -269,6 +293,7 @@ else
     esac
   }
 
+  _wt_filter
   printf '\e[?1049h\e[?25l\e[?1004h'
   trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
   while true; do
@@ -299,7 +324,10 @@ else
         track=$(( cols - 12 ))
         (( track < 10 )) && track=10
       fi
-      if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+      # While filtering in the list, the typed query takes the robot's spot.
+      if [[ $mode == list && -n $query ]]; then
+        print -P "%F{208}/%f${query}%F{244}▏%f"$'\e[K'
+      elif [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
         crazy-robot $track
       fi
       if [[ $mode != robot ]]; then
@@ -324,7 +352,36 @@ else
       if [[ $mode == robot ]]; then
         :
       elif [[ $mode == list ]]; then
-        for ((i=1; i<=count; i++)); do
+        # Viewport: only render rows that fit. Above the list we draw the
+        # robot (4) — or, while filtering, a 1-line query prompt — plus the
+        # separator (1) and optional restart banner; below it a blank line +
+        # footer (2), plus 1 spare so the footer's trailing newline doesn't
+        # scroll the terminal. Scroll window to keep sel visible. sel/_vstart/
+        # _vend index into midx (the filtered view), not items directly.
+        local _ov=4
+        if [[ -n $query ]]; then
+          (( _ov += 1 ))
+        elif [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+          (( _ov += 4 ))
+        fi
+        [[ -n $_wt_restart_tag ]] && (( _ov += 1 ))
+        local _vh=$(( rows - _ov )); (( _vh < 1 )) && _vh=1
+        if (( mcount <= _vh )); then
+          _list_off=0
+        else
+          (( sel > _list_off + _vh )) && _list_off=$(( sel - _vh ))
+          (( sel <= _list_off )) && _list_off=$(( sel - 1 ))
+          (( _list_off > mcount - _vh )) && _list_off=$(( mcount - _vh ))
+          (( _list_off < 0 )) && _list_off=0
+        fi
+        if (( mcount == 0 )); then
+          print -P "%F{244}  no matches%f"$'\e[K'
+        fi
+        local _vstart=$(( _list_off + 1 ))
+        local _vend=$(( _list_off + _vh )); (( _vend > mcount )) && _vend=mcount
+        local _p
+        for ((_p=_vstart; _p<=_vend; _p++)); do
+          local i=${midx[_p]}
           local row=${items[i]}
           local -a fields=(${(s:	:)row})
           local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]}
@@ -345,17 +402,21 @@ else
           fi
           local suffix=""
           [[ -n $rname && $rname != "-" ]] && suffix="  %F{244}(${rname})%f"
-          if (( i == sel )); then
+          if (( _p == sel )); then
             print -P "${prefix}%F{214}${label}%f${suffix}"$'\e[K'
           else
             print -P "${prefix}${label}${suffix}"$'\e[K'
           fi
         done
         print -P ""$'\e[K'
-        if [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
-          print -P "%F{244}↑↓ navigate · Enter pick · ← robot · → settings · q to quit%f"$'\e[K'
+        local _scroll=""
+        (( mcount > _vh )) && _scroll=" · %F{208}${sel}/${mcount}%F{244}"
+        if [[ -n $query ]]; then
+          print -P "%F{244}type to filter · ⌫ delete · Enter pick · Esc clear${_scroll}%f"$'\e[K'
+        elif [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]]; then
+          print -P "%F{244}↑↓ navigate · Enter pick · ← robot · → settings · type to filter · Esc quit${_scroll}%f"$'\e[K'
         else
-          print -P "%F{244}↑↓ navigate · Enter pick · → settings · q to quit%f"$'\e[K'
+          print -P "%F{244}↑↓ navigate · Enter pick · → settings · type to filter · Esc quit${_scroll}%f"$'\e[K'
         fi
       else
         # Settings panel
@@ -438,19 +499,29 @@ else
           ;;
       esac
     elif [[ $mode == list ]]; then
+      # Printable keys filter the list; vim-style j/k/h/l aliases are dropped
+      # here so those letters type into the query instead.
       case $seq in
         $'\e[I') focused=1 ;;
         $'\e[O') focused=0 ;;
-        $'\e[A'|k) (( sel = sel == 1 ? count : sel - 1 )) ;;
-        $'\e[B'|j) (( sel = sel == count ? 1 : sel + 1 )) ;;
+        $'\e[A') (( mcount > 0 )) && (( sel = sel == 1 ? mcount : sel - 1 )) ;;
+        $'\e[B') (( mcount > 0 )) && (( sel = sel == mcount ? 1 : sel + 1 )) ;;
         $'\e[C') mode=settings; ssel=1; printf '\e[H\e[J' ;;
-        $'\e[D'|h)
-          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { mode=robot; printf '\e[H\e[J'; }
+        $'\e[D')
+          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 && -z $query ]] && { mode=robot; printf '\e[H\e[J'; }
           ;;
-        $'\e'|q|Q) aborted=1; break ;;
-        $'\n'|$'\r') break ;;
-        ' ')
-          [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && { _robot_state=slot; _robot_t=0; _robot_dur=45; }
+        $'\n'|$'\r') (( mcount > 0 )) && break ;;
+        $'\x7f'|$'\b')
+          [[ -n $query ]] && { query=${query%?}; _wt_filter; printf '\e[H\e[J'; }
+          ;;
+        $'\e')
+          if [[ -n $query ]]; then query=""; _wt_filter; printf '\e[H\e[J'
+          else aborted=1; break; fi
+          ;;
+        *)
+          if [[ ${#seq} == 1 && $seq == [[:print:]] ]]; then
+            query+=$seq; _wt_filter; printf '\e[H\e[J'
+          fi
           ;;
       esac
     else
@@ -473,7 +544,7 @@ else
   printf '\e[?25h\e[?1049l\e[?1004l'
   trap - EXIT INT TERM
   (( aborted )) && return 1
-  pick=${items[sel]}
+  pick=${items[${midx[sel]}]}
 fi
 
 local cwd=${${(s:	:)pick}[1]}
