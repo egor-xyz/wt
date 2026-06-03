@@ -35,6 +35,12 @@ $'  .-----.   ·     🌙\n  [- - -]    ==o\n  /|━━━|\\    |\n   o   o    
 $'\n\n\n'
 $'  /\\   /\\\n  .-----.\n  [o   o]\n'
 $'  /\\   /\\\n  .-----.\n  [- - -]\n'
+$'  .-----.\n  [⌐   ⌐]🏀  --|_|\n  /|━━━|━       |\n   o   o        |'
+$'  .-----.  🏀\n  [⌐   ⌐]    --|_|\n  /|━━━|━       |\n   o   o        |'
+$'  .-----.    🏀\n  [⌐   ⌐]    --|_|\n  /|━━━|\\       |\n   o   o        |'
+$'  .-----.\n  [⌐   ⌐]    🏀|_|\n  /|━━━|\\       |\n   o   o        |'
+$'  .-----.\n  [^   ^]    --|_|\n  /|━━━|\\     🏀|\n   o   o        |'
+$'  .-----.\n  [^   ^]✨  --|_|\n  /|━━━|\\       |\n   o   o      🏀|'
 )
 
 # Pick new state when current expires
@@ -44,15 +50,16 @@ if (( _robot_t >= _robot_dur )); then
   if [[ $_robot_state != walk ]]; then
     _robot_state=walk
   else
-    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek)
+    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek basketball)
     _robot_state=${states[$((RANDOM % ${#states} + 1))]}
   fi
   _robot_t=0
   # Keep walk's final pos when switching to other states so the robot
   # stays put. Only clamp wide props (moon) since plain robot frames
   # already fit inside the walk track. catpeek picks its own pos per phase.
-  if [[ $_robot_state == moon ]]; then
+  if [[ $_robot_state == moon || $_robot_state == basketball ]]; then
     local _w=20
+    [[ $_robot_state == basketball ]] && _w=18
     (( _robot_pos > track - _w )) && _robot_pos=$(( track - _w ))
     (( _robot_pos < 0 )) && _robot_pos=0
   fi
@@ -67,6 +74,7 @@ if (( _robot_t >= _robot_dur )); then
     jump)              _robot_dur=$(( (12 + RANDOM % 6) * 2 )) ;; # 12-17 jumps
     moon)              _robot_dur=$(( (6 + RANDOM % 4) * 6 )) ;; # 6-9 blink cycles
     catpeek)           _robot_dur=$(( (2 + RANDOM % 2) * 8 )) ;; # 2-3 peek loops
+    basketball)        _robot_dur=$(( (2 + RANDOM % 3) * 6 )) ;; # 2-4 shot loops
     *)                 _robot_dur=$(( 8 + RANDOM % 18 )) ;;
   esac
 fi
@@ -86,6 +94,7 @@ case $_robot_state in
   jump)     color=${rainbow[$((_robot_t % ${#rainbow} + 1))]} ;;
   moon)     color=75  ;;  # pale blue
   catpeek)  color=213 ;;  # pink
+  basketball) color=214 ;;  # amber
   slot)     color=226 ;;  # yellow (jackpot overrides below)
 esac
 case $_robot_state in
@@ -128,6 +137,10 @@ case $_robot_state in
       3|5) raw=${idle_frames[15]} ;;
       *)   raw=${idle_frames[13]} ;;
     esac
+    ;;
+  basketball)
+    # 6-tick cycle: aim → release → arc → rim → swish → bounce+✨
+    raw=${idle_frames[$(( 16 + _robot_t % 6 ))]}
     ;;
   slot)
     # Reel symbols. 7️⃣ keycap is the jackpot — width matches the other 2-col
