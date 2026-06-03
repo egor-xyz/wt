@@ -14,7 +14,7 @@ if [[ $1 == robot ]]; then
   fi
   local key seq focused=1 _prev_lines=0 _prev_cols=0
   local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1 _robot_mirror=0
-  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek basketball slot)
+  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek basketball campfire fishing coffee garden balloon goal concert ufo slot)
   local rcount=${#robot_order} rsel=1
   local _robot_lock_ts=$SECONDS
   autoload -Uz crazy-robot
@@ -195,7 +195,7 @@ else
   local scount=${#settings_keys}
   # Robot state
   local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1 _robot_mirror=0
-  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek basketball slot)
+  local -a robot_order=(walk static blink wave sleep surprise smile dance jump moon catpeek basketball campfire fishing coffee garden balloon goal concert ufo slot)
   local rcount=${#robot_order} rsel=1
   local _robot_lock_ts=$SECONDS
   autoload -Uz crazy-robot

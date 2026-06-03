@@ -41,6 +41,59 @@ $'  .-----.    🏀\n  [⌐   ⌐]    --|_|\n  /|━━━|\\       |\n   o   o 
 $'  .-----.\n  [⌐   ⌐]    🏀|_|\n  /|━━━|\\       |\n   o   o        |'
 $'  .-----.\n  [^   ^]    --|_|\n  /|━━━|\\     🏀|\n   o   o        |'
 $'  .-----.\n  [^   ^]✨  --|_|\n  /|━━━|\\       |\n   o   o      🏀|'
+$'  .-----.\n  [o   o]\n  /|━━━|━━o\n   o   o  🔥'
+$'  .-----.\n  [o   o]  ·\n  /|━━━|━━o\n   o   o  💥'
+$'  .-----.\n  [-   -]\n  /|━━━|━━o\n   o   o  ✨'
+$'  .-----.\n  [o   o]\no━━|━━━|\\\n🔥 o   o'
+$'  .-----.\n· [o   o]\no━━|━━━|\\\n💥 o   o'
+$'  .-----.\n  [-   -]\no━━|━━━|\\\n✨ o   o'
+$'         .-----.\n|_|--  🏀[⌐   ⌐]\n |       ━|━━━|\\\n |        o   o'
+$'     🏀  .-----.\n|_|--    [⌐   ⌐]\n |       ━|━━━|\\\n |        o   o'
+$'   🏀    .-----.\n|_|--    [⌐   ⌐]\n |       /|━━━|\\\n |        o   o'
+$'         .-----.\n|_|🏀    [⌐   ⌐]\n |       /|━━━|\\\n |        o   o'
+$'         .-----.\n|_|--    [^   ^]\n |🏀     /|━━━|\\\n |        o   o'
+$'         .-----.\n|_|--  ✨[^   ^]\n |       /|━━━|\\\n |🏀      o   o'
+$'  .-----.\n  [o   o]\n  /|━━━|━━━\\\n   o   o  ~~o~~'
+$'  .-----.\n  [-   -]\n  /|━━━|━━━\\\n   o   o  ~~~~~'
+$'  .-----.  🐟\n  [^   ^]━━/✨\n  /|━━━|\n   o   o  ~~~~~'
+$'         .-----.\n         [o   o]\n      /━━━|━━━|\\\n   ~~o~~  o   o'
+$'         .-----.\n         [-   -]\n      /━━━|━━━|\\\n   ~~~~~  o   o'
+$'     🐟  .-----.\n    ✨\\━━[^   ^]\n          |━━━|\\\n   ~~~~~  o   o'
+$'  .-----.\n  [-   -] ~\n  /|━━━|━☕\n   o   o'
+$'  .-----.\n  [-   -]  ~\n  /|━━━|━☕\n   o   o'
+$'  .-----.\n  [-   -]☕\n  /|━━━|/\n   o   o'
+$'  .-----.\n  [O   O]\n  /|━━━|━☕\n   o   o'
+$'         .-----.\n       ~ [-   -]\n       ☕━|━━━|\\\n          o   o'
+$'         .-----.\n      ~  [-   -]\n       ☕━|━━━|\\\n          o   o'
+$'         .-----.\n       ☕[-   -]\n         \\|━━━|\\\n          o   o'
+$'         .-----.\n         [O   O]\n       ☕━|━━━|\\\n          o   o'
+$'  .-----.\n  [o   o]\n  /|━━━|━o·\n   o   o  🌱'
+$'  .-----.\n  [o   o]\n  /|━━━|━o\n   o   o  🌱'
+$'  .-----.\n  [o   o]\n  /|━━━|━o·\n   o   o  🌿'
+$'  .-----.\n  [o   o]\n  /|━━━|━o\n   o   o  🌿'
+$'  .-----.\n  [^   ^]\n  /|━━━|\\\n   o   o  🌻'
+$'         .-----.\n         [o   o]\n       ·o━|━━━|\\\n      🌱  o   o'
+$'         .-----.\n         [o   o]\n        o━|━━━|\\\n      🌱  o   o'
+$'         .-----.\n         [o   o]\n       ·o━|━━━|\\\n      🌿  o   o'
+$'         .-----.\n         [o   o]\n        o━|━━━|\\\n      🌿  o   o'
+$'         .-----.\n         [^   ^]\n         /|━━━|\\\n      🌻  o   o'
+$'  .-----.  🎈\n  [o   o] /\n  /|━━━|━o\n   o   o'
+$'  .-----.  🎈\n  [O   O] /\n  /|━━━|━o\n   \'   \''
+$'     🎈  .-----.\n       \\ [o   o]\n        o━|━━━|\\\n          o   o'
+$'     🎈  .-----.\n       \\ [O   O]\n        o━|━━━|\\\n          \'   \''
+$'  .-----.\n  [o   o]    ______\n  /|━━━|\\    |: : :|\n   o   o ⚽  |     |'
+$'  .-----.\n  [o   o]    ______\n  /|━━━|\\    |: : :|\n   o  /    ⚽|     |'
+$'  .-----.\n  [o   o]    ______\n  /|━━━|\\    |: : :|\n   o   o     | ⚽  |'
+$' \\.-----./\n  [^   ^]    ______\n   |━━━|     |: : :|\n   o   o     | ⚽  |'
+$'             .-----.\n______       [o   o]\n|: : :|      /|━━━|\\\n|     |    ⚽ o   o'
+$'             .-----.\n______       [o   o]\n|: : :|      /|━━━|\\\n|     |  ⚽   \\   o'
+$'             .-----.\n______       [o   o]\n|: : :|      /|━━━|\\\n|  ⚽ |       o   o'
+$'            \\.-----./\n______       [^   ^]\n|: : :|       |━━━|\n|  ⚽ |       o   o'
+$'      .-----.\n      [o   o]\n    🎤━|━━━|\\\n       o   o'
+$'      .-----.\n  🎵  [o   o]\n    🎤━|━━━|\\\n       o   o'
+$'🎵     .-----.\n  🎶  [^   ^]\n    🎤━|━━━|\\\n       o   o'
+$'🎶     .-----.\n  🎵  [^   ^]\n    🎤━|━━━|\\\n       o   o'
+$'        \\.-----./\n         [O   O]\n          |━━━|\n          o   o'
 )
 
 # Pick new state when current expires
@@ -50,16 +103,24 @@ if (( _robot_t >= _robot_dur )); then
   if [[ $_robot_state != walk ]]; then
     _robot_state=walk
   else
-    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek basketball)
+    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek basketball campfire fishing coffee garden balloon goal concert ufo)
     _robot_state=${states[$((RANDOM % ${#states} + 1))]}
   fi
   _robot_t=0
   # Keep walk's final pos when switching to other states so the robot
   # stays put. Only clamp wide props (moon) since plain robot frames
   # already fit inside the walk track. catpeek picks its own pos per phase.
-  if [[ $_robot_state == moon || $_robot_state == basketball ]]; then
-    local _w=20
-    [[ $_robot_state == basketball ]] && _w=18
+  local _w=0
+  case $_robot_state in
+    moon)                   _w=20 ;;
+    basketball|ufo)         _w=18 ;;
+    goal)                   _w=21 ;;
+    balloon)                _w=16 ;;
+    fishing)                _w=16 ;;
+    campfire|coffee|garden) _w=13 ;;
+    concert)                _w=14 ;;
+  esac
+  if (( _w )); then
     (( _robot_pos > track - _w )) && _robot_pos=$(( track - _w ))
     (( _robot_pos < 0 )) && _robot_pos=0
   fi
@@ -75,6 +136,14 @@ if (( _robot_t >= _robot_dur )); then
     moon)              _robot_dur=$(( (6 + RANDOM % 4) * 6 )) ;; # 6-9 blink cycles
     catpeek)           _robot_dur=$(( (2 + RANDOM % 2) * 8 )) ;; # 2-3 peek loops
     basketball)        _robot_dur=$(( (2 + RANDOM % 3) * 6 )) ;; # 2-4 shot loops
+    campfire)          _robot_dur=$(( (4 + RANDOM % 4) * 3 )) ;; # 4-7 flicker loops
+    fishing)           _robot_dur=$(( (1 + RANDOM % 2) * 12 )) ;; # 1-2 catch loops
+    coffee)            _robot_dur=$(( (1 + RANDOM % 2) * 12 )) ;; # 1-2 sip loops
+    garden)            _robot_dur=$(( (1 + RANDOM % 2) * 12 )) ;; # 1-2 grow loops
+    balloon)           _robot_dur=999 ;; # ends dynamically when balloon leaves screen
+    goal)              _robot_dur=$(( (1 + RANDOM % 2) * 8 )) ;; # 1-2 kicks
+    concert)           _robot_dur=$(( (3 + RANDOM % 3) * 4 )) ;; # 3-5 riffs
+    ufo)               _robot_dur=999 ;; # ends dynamically when 🛸 leaves screen
     *)                 _robot_dur=$(( 8 + RANDOM % 18 )) ;;
   esac
 fi
@@ -95,6 +164,14 @@ case $_robot_state in
   moon)     color=75  ;;  # pale blue
   catpeek)  color=213 ;;  # pink
   basketball) color=214 ;;  # amber
+  campfire) color=203 ;;  # warm red
+  fishing)  color=39  ;;  # water blue
+  coffee)   color=130 ;;  # coffee brown
+  garden)   color=114 ;;  # leaf green
+  balloon)  color=219 ;;  # balloon pink
+  goal)     color=82  ;;  # pitch green
+  concert)  color=135 ;;  # rock purple
+  ufo)      color=51  ;;  # alien cyan
   slot)     color=226 ;;  # yellow (jackpot overrides below)
 esac
 case $_robot_state in
@@ -139,8 +216,164 @@ case $_robot_state in
     esac
     ;;
   basketball)
-    # 6-tick cycle: aim → release → arc → rim → swish → bounce+✨
-    raw=${idle_frames[$(( 16 + _robot_t % 6 ))]}
+    # 6-tick cycle: aim → release → arc → rim → swish → bounce+✨.
+    # Mirrored variant puts the hoop on the robot's left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    raw=${idle_frames[$(( (_robot_mirror ? 28 : 16) + _robot_t % 6 ))]}
+    ;;
+  campfire)
+    # 3-tick flicker: 🔥 flare → 💥 burst → ✨ embers (+ cozy blink).
+    # Mirrored variant puts the fire on the robot's left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    raw=${idle_frames[$(( (_robot_mirror ? 25 : 22) + _robot_t % 3 ))]}
+    ;;
+  fishing)
+    # 12-tick cycle: bobber bobs (4 ticks) → 🐟 catch + ✨ (8 ticks).
+    # Mirrored variant fishes off the robot's left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local _fb=$(( _robot_mirror ? 37 : 34 ))
+    local _fp=$(( _robot_t % 12 ))
+    if (( _fp >= 4 )); then
+      raw=${idle_frames[$(( _fb + 2 ))]}
+    else
+      raw=${idle_frames[$(( _fb + _fp % 2 ))]}
+    fi
+    ;;
+  coffee)
+    # 12-tick cycle: sleepy + slow steam drift (6) → long sip (3) → awake O O (3).
+    # Mirrored variant holds the cup in the left hand.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local _cb=$(( _robot_mirror ? 44 : 40 ))
+    local _cp=$(( _robot_t % 12 ))
+    if (( _cp < 6 )); then
+      raw=${idle_frames[$(( _cb + _cp / 3 ))]}
+    elif (( _cp < 9 )); then
+      raw=${idle_frames[$(( _cb + 2 ))]}
+    else
+      raw=${idle_frames[$(( _cb + 3 ))]}
+    fi
+    ;;
+  garden)
+    # 12-tick cycle: water 🌱 (4) → water 🌿 (4) → 🌻 blooms (4).
+    # Water drop · falls on alternate ticks. Mirrored variant plants left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local _gb=$(( _robot_mirror ? 53 : 48 ))
+    local _gp=$(( _robot_t % 12 ))
+    if (( _gp < 8 )); then
+      raw=${idle_frames[$(( _gb + _gp / 4 * 2 + _gp % 2 ))]}
+    else
+      raw=${idle_frames[$(( _gb + 4 ))]}
+    fi
+    ;;
+  balloon)
+    # hold 🎈 (2) → lift off, feet tucked (2) → let go: balloon drifts all
+    # the way across the terminal while the robot watches, then robot is sad.
+    # Mirrored variant holds left and the balloon drifts off to the left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local _bb=$(( _robot_mirror ? 60 : 58 ))
+    if (( _robot_t < 4 )); then
+      raw=${idle_frames[$(( _bb + _robot_t / 2 ))]}
+    else
+      local _bd=$(( (_robot_t - 4) * 2 ))
+      local _gone=0 _brel _bsp="" _bi
+      if (( _robot_mirror )); then
+        _brel=$(( 3 - _bd ))
+        (( _robot_pos + _brel < 0 )) && _gone=1
+      else
+        _brel=$(( 13 + _bd ))
+        (( _robot_pos + _brel + 2 > track )) && _gone=1
+      fi
+      if (( _gone )); then
+        # sad — balloon flew away. Mirror keeps torso at its drift columns.
+        raw=${idle_frames[7]}
+        local _bnl=$'\n'
+        (( _robot_mirror )) && raw="       ${raw//${_bnl}/${_bnl}       }"
+        (( _robot_dur > _robot_t + 3 )) && _robot_dur=$(( _robot_t + 3 ))
+      elif (( _robot_mirror )); then
+        # Build the frame in absolute columns (pad shadowed to 0) so the
+        # balloon can keep flying left past the robot's own left edge.
+        local _babs=$(( _robot_pos + _brel ))
+        local _bpad=$(( _robot_pos + 7 ))
+        for ((_bi=0; _bi<_babs; _bi++)); do _bsp+=" "; done
+        local _bgap=""
+        for ((_bi=_babs+2; _bi<_bpad; _bi++)); do _bgap+=" "; done
+        local _brow=""
+        for ((_bi=0; _bi<_bpad+2; _bi++)); do _brow+=" "; done
+        raw="${_bsp}🎈${_bgap}o/.-----."$'\n'"${_brow}[O   O]"$'\n'"${_brow} |━━━|"$'\n'"${_brow} o   o"
+        local _robot_pos=0
+      else
+        for ((_bi=0; _bi<_brel-11; _bi++)); do _bsp+=" "; done
+        raw='  .-----.\o'"${_bsp}🎈"$'\n'"  [O   O]"$'\n'"   |━━━|"$'\n'"   o   o"
+      fi
+    fi
+    ;;
+  goal)
+    # 8-tick cycle: ball at feet (2) → kick → rolls → in the net, arms up (4).
+    # Mirrored variant kicks into a goal on the robot's left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    local _gob=$(( _robot_mirror ? 66 : 62 ))
+    local _gop=$(( _robot_t % 8 ))
+    if (( _gop <= 1 )); then
+      raw=${idle_frames[$_gob]}
+    elif (( _gop <= 3 )); then
+      raw=${idle_frames[$(( _gob + _gop - 1 ))]}
+    else
+      raw=${idle_frames[$(( _gob + 3 ))]}
+    fi
+    ;;
+  concert)
+    # 4-tick riff: 🎤 in hand → 🎵 rises → 🎵🎶 float up and away.
+    # Always the left-side variant (mic in left hand, notes drift left).
+    raw=${idle_frames[$(( 70 + _robot_t % 4 ))]}
+    ;;
+  ufo)
+    # Left-only scene: 🛸 flies in from the left edge while the 🐄 walks
+    # from the robot's side to meet it in the middle → beam → cow taken →
+    # 🛸 exits left across the screen, robot panics (arms waving), ends
+    # shocked for 3 ticks.
+    # Meeting point: middle of the gap between left edge and the cow's
+    # start next to the robot. Cow walks 1 col/tick to it; 🛸 eases in.
+    _wt_sp() { local _n=$1 _s="" _i; for ((_i=0; _i<_n; _i++)); do _s+=" "; done; print -rn -- "$_s"; }
+    local _um=$(( (_robot_pos + 6) / 2 ))
+    (( _um < 1 )) && _um=1
+    local _ua=$(( _robot_pos + 6 - _um ))
+    (( _ua < 1 )) && _ua=1
+    local _ut=$(( _robot_t - _ua ))
+    local _upr=$(_wt_sp $(( _robot_pos + 9 )))
+    local _body="${_upr}/|━━━|\\" _feet="${_upr} o   o"
+    if (( _ut < 0 )); then
+      # Approach: cow walks left, 🛸 flies right, both toward _um.
+      local _uabs=$(( _um * _robot_t / _ua ))
+      local _cabs=$(( _robot_pos + 6 - _robot_t ))
+      raw="$(_wt_sp $_uabs)🛸$(_wt_sp $(( _robot_pos + 7 - _uabs ))).-----."$'\n'"${_upr}[o   o]"$'\n'"${_body}"$'\n'"$(_wt_sp $_cabs)🐄$(_wt_sp $(( _robot_pos + 8 - _cabs )))o   o"
+    elif (( _ut == 0 )); then
+      # Met: 🛸 hovers right above the cow.
+      raw="$(_wt_sp $_um)🛸$(_wt_sp $(( _robot_pos + 7 - _um ))).-----."$'\n'"${_upr}[o   o]"$'\n'"${_body}"$'\n'"$(_wt_sp $_um)🐄$(_wt_sp $(( _robot_pos + 8 - _um )))o   o"
+    elif (( _ut == 1 )); then
+      # Beam on.
+      raw="$(_wt_sp $_um)🛸$(_wt_sp $(( _robot_pos + 7 - _um ))).-----."$'\n'"$(_wt_sp $(( _um - 1 )))\\  /$(_wt_sp $(( _robot_pos + 6 - _um )))[O   O]"$'\n'"${_body}"$'\n'"$(_wt_sp $_um)🐄$(_wt_sp $(( _robot_pos + 8 - _um )))o   o"
+    elif (( _ut == 2 )); then
+      # Cow halfway up.
+      raw="$(_wt_sp $_um)🛸$(_wt_sp $(( _robot_pos + 7 - _um ))).-----."$'\n'"$(_wt_sp $(( _um - 1 )))\\  /$(_wt_sp $(( _robot_pos + 6 - _um )))[O   O]"$'\n'"$(_wt_sp $_um)🐄$(_wt_sp $(( _robot_pos + 7 - _um )))/|━━━|\\"$'\n'"${_feet}"
+    elif (( _ut == 3 )); then
+      # Cow at the ship.
+      raw="$(_wt_sp $_um)🛸$(_wt_sp $(( _robot_pos + 7 - _um ))).-----."$'\n'"$(_wt_sp $_um)🐄$(_wt_sp $(( _robot_pos + 7 - _um )))[O   O]"$'\n'"${_body}"$'\n'"${_feet}"
+    else
+      # Exit: 🛸 flies left off the screen, robot waves arms up/down.
+      local _uabs=$(( _um - (_ut - 4) * 3 ))
+      if (( _uabs < 0 )); then
+        # Shocked hold — relative frame, keep normal pos padding.
+        raw=${idle_frames[74]}
+        local _ushock=1
+        (( _robot_dur > _robot_t + 3 )) && _robot_dur=$(( _robot_t + 3 ))
+      elif (( _robot_t % 2 )); then
+        raw="$(_wt_sp $_uabs)🛸$(_wt_sp $(( _robot_pos + 6 - _uabs )))\\.-----./"$'\n'"${_upr}[O   O]"$'\n'"${_upr} |━━━|"$'\n'"${_feet}"
+      else
+        raw="$(_wt_sp $_uabs)🛸$(_wt_sp $(( _robot_pos + 7 - _uabs ))).-----."$'\n'"${_upr}[O   O]"$'\n'"${_body}"$'\n'"${_feet}"
+      fi
+    fi
+    # All frames except the shocked hold are built in absolute columns.
+    (( ${_ushock:-0} )) || local _robot_pos=0
     ;;
   slot)
     # Reel symbols. 7️⃣ keycap is the jackpot — width matches the other 2-col
