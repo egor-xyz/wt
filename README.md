@@ -16,7 +16,8 @@ You run Claude Code in five worktrees. You forget which terminal has which.
 You `cd` into the wrong one. You curse.
 
 **`wtclaude` finds them all, groups them, and `cd`s you into the right one.**
-A robot does a little dance while you pick. 🤖
+Want a robot to dance while you pick? Install the optional
+[`robot`](https://github.com/egor-xyz/robot) plugin alongside it. 🤖
 
 <img width="1280" height="640" alt="wtclaude" src="https://github.com/user-attachments/assets/1d1b6066-c4e0-42bb-a2ec-eef0b24fcb99" />
 
@@ -24,11 +25,12 @@ A robot does a little dance while you pick. 🤖
 
 ## ✨ Why you'll like it
 
-- 🤖 **Animated robot mascot.** Walks, blinks, waves, dances. Press `Space` for 🎰.
 - 🌳 **Worktree-aware grouping.** Sessions cluster under their parent repo as a tree.
 - 💀 **Dead sessions filtered.** Only live PIDs show up.
 - 🗂️ **Idle worktrees too.** Every worktree under a known repo, not just the running ones.
-- ⌨️ **Pure keyboard.** Arrow keys, `j`/`k`, `Enter`, `q`. No mouse, no config.
+- 🔎 **Type-to-filter.** Just start typing to narrow the list.
+- ⌨️ **Pure keyboard.** Arrows, `Enter`, `→` for settings, `q`. No mouse, no config.
+- 🤖 **Optional robot mascot.** Install [`robot`](https://github.com/egor-xyz/robot) and it dances in the picker while you choose.
 - 🪶 **Zero dependencies** beyond `zsh` and `jq`. Pure zsh autoload — no daemon, no cache file.
 
 ---
@@ -113,10 +115,11 @@ wtclaude
 
 | Key         | Action                            |
 | ----------- | --------------------------------- |
-| `↑` / `↓`   | Move selection (also `k` / `j`)   |
+| `↑` / `↓`   | Move selection                    |
 | `Enter`     | Pick session, `cd` into its cwd   |
+| `→`         | Open settings                     |
+| type        | Filter the list                   |
 | `Esc` / `q` | Quit                              |
-| `Space`     | 🎰 Slot machine easter egg        |
 
 ---
 
@@ -131,7 +134,8 @@ For every repo with at least one live session, idle worktrees under
 `<repo>/.claude/worktrees/*` are listed too — so you can hop into a sibling
 worktree even when nothing is running there.
 
-While you scroll, the robot does its thing.
+If the optional [`robot`](https://github.com/egor-xyz/robot) plugin is
+installed, its mascot dances above the list while you scroll.
 
 ---
 
@@ -141,7 +145,7 @@ All optional. Set in `~/.zshrc` before sourcing the plugin.
 
 | Variable                   | Default | Effect                                                                                                  |
 | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `WTCLAUDE_NO_ROBOT`        | `0`     | `1` hides the robot mascot (faster, less whimsical).                                                    |
+| `WTCLAUDE_NO_ROBOT`        | `0`     | `1` hides the robot mascot even when the [`robot`](https://github.com/egor-xyz/robot) plugin is installed. |
 | `WTCLAUDE_AUTO_UPDATE`     | `0`     | `1` fetches tags and checks out the latest GitHub Release in the background, once per launch. New version visible on next invocation. |
 
 ```zsh

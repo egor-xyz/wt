@@ -23,7 +23,10 @@ else
   git clone --quiet "$REPO" "$DEST"
 fi
 
-LATEST=$(latest_release_tag)
+# `|| true`: under `set -euo pipefail` a curl/sed pipeline failure (no network,
+# API rate limit) would otherwise abort the installer here — before the .zshrc
+# source line is appended — leaving a silent half-install. Fall through instead.
+LATEST=$(latest_release_tag || true)
 if [ -n "$LATEST" ]; then
   echo "→ checking out release $LATEST"
   git -C "$DEST" checkout --quiet "$LATEST"

@@ -8,8 +8,12 @@ Guidance for Claude Code (and humans) working in this repo.
 the user pick one to `cd` into. It's session/worktree navigation, not a
 framework.
 
-The animated robot in the picker (`crazy-robot`) is a deliberate, load-bearing
-part of the UX. Don't strip it out in the name of "cleanup".
+The picker shows an animated robot mascot while you choose — but that mascot now
+lives in a **separate, optional** plugin,
+[`egor-xyz/robot`](https://github.com/egor-xyz/robot). If that plugin is
+installed it provides the `crazy-robot` function and wtclaude renders the dance;
+if not, the picker simply runs without it. wtclaude ships no robot code of its
+own.
 
 ## Layout
 
@@ -17,7 +21,6 @@ part of the UX. Don't strip it out in the name of "cleanup".
 wtclaude.plugin.zsh   plugin manager entry — sets fpath + autoloads
 install.sh            curl one-liner installer (clones to ~/.wtclaude, patches .zshrc)
 functions/wtclaude    main command: picker that reads ~/.claude/sessions/*.json
-functions/crazy-robot animation component, called per frame by wtclaude
 ```
 
 Function files use zsh autoload convention: file name = function name, no
@@ -31,26 +34,20 @@ Function files use zsh autoload convention: file name = function name, no
 - **`setopt typeset_silent`** — without it, `local var` (no value) prints the
   variable's current declaration. This burned us; keep it.
 - **No `print -P`** for content that may contain `\` (eats trailing backslash
-  as line continuation). Use `printf '\e[...m%s\e[39m\n'` with raw ANSI.
-- **Frame strings** are `$'...'` quoted, 4 lines unless an animation needs
-  vertical motion (jump, jackpot). Width should align so leading pad applies
-  uniformly.
-- **Emoji are 2-column.** Slot-machine frames widen the body bars to match.
-  If you add new emoji frames, re-render and eyeball alignment in a real
-  terminal.
-- **Shared state with the robot** flows through `_robot_*` locals declared in
-  `wtclaude` and read/written by `crazy-robot` via dynamic scoping. Don't
-  promote these to globals.
+  as line continuation). Use `printf '\e[...m%s\e[39m\n'` with raw ANSI. The
+  picker's colored chrome uses `print -P` only because it has no backslashes.
+- **Optional robot mascot.** wtclaude calls `crazy-robot` only when it exists
+  (`(( ${+functions[crazy-robot]} ))`) — i.e. when the `egor-xyz/robot` plugin
+  is installed. The `_robot_*` locals declared in `wtclaude` are the
+  dynamic-scope contract `crazy-robot` reads/writes; keep them local, and keep
+  every robot call behind the guard so the picker works without the plugin.
 
-## Adding a new robot animation
+## Robot animations
 
-A robot state spans **two files and eight locations** — frames in
-`functions/crazy-robot` plus **two** `robot_order` lists in `functions/wtclaude`
-(miss one and the state plays randomly but is unreachable by ↑↓ stepping).
-
-Follow the project skill: **`.claude/skills/add-robot-animation/SKILL.md`**. It
-has the full touchpoint checklist, the left/right mirror convention, and the
-per-tick sweep test for eyeballing alignment.
+The robot lives in its own repo now — animations are added there, not here. See
+[`egor-xyz/robot`](https://github.com/egor-xyz/robot) and its
+`add-robot-animation` skill. wtclaude only *calls* `crazy-robot` (when the plugin
+is present); it ships no frames.
 
 ## Testing
 
@@ -59,21 +56,14 @@ There is no test suite — this is a TUI plugin. To smoke-test:
 ```sh
 zsh -fc '
   fpath=(./functions $fpath)
-  autoload -Uz wtclaude crazy-robot
+  autoload -Uz wtclaude
   (sleep 0.6; printf "\e") | wtclaude 2>&1 | head -20
 '
 ```
 
-To preview a single robot frame:
-
-```sh
-zsh -fc '
-  _robot_state=jump _robot_t=0 _robot_dur=10 _robot_pos=0 _robot_dir=1
-  fpath=(./functions $fpath)
-  autoload -Uz crazy-robot
-  crazy-robot 30
-'
-```
+The robot mascot can't be previewed from this repo (it lives in
+[`egor-xyz/robot`](https://github.com/egor-xyz/robot)). To see the dance in the
+picker, install that plugin alongside wtclaude.
 
 ## Distribution
 
@@ -90,11 +80,12 @@ Don't add a brew formula unless we cut tagged releases.
 
 ## What not to do
 
-- Don't reformat the ASCII robot frames — alignment is fragile.
-- Don't replace `printf` with `print -P` (see above).
+- Don't replace raw `printf` with `print -P` for anything containing `\`.
 - Don't add `set -e` / `set -u` to the zsh functions; they break things in
   surprising ways under autoload.
 - Don't pull in dependencies. The only runtime deps are `zsh` and `jq`.
+- Don't re-embed the robot. It's a separate plugin now; call `crazy-robot` only
+  behind the `(( ${+functions[crazy-robot]} ))` guard.
 
 ## Git
 
