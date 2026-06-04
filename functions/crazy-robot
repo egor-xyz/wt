@@ -94,6 +94,22 @@ $'      .-----.\n  🎵  [o   o]\n    🎤━|━━━|\\\n       o   o'
 $'🎵     .-----.\n  🎶  [^   ^]\n    🎤━|━━━|\\\n       o   o'
 $'🎶     .-----.\n  🎵  [^   ^]\n    🎤━|━━━|\\\n       o   o'
 $'        \\.-----./\n         [O   O]\n          |━━━|\n          o   o'
+$' \\.-----./\n  [^   ^]\n   |━━━|    📷\n   o   o    /|'
+$' \\.-----./\n  [O   O]   ✨\n   |━━━|    📸\n   o   o    /|'
+$'  .-----.\n  [o   o]\n  /|━━━|o   📷\n   o   o    /|'
+$'  .-----.\n  [O   O]   ✨\n  /|━━━|o   📸\n   o   o    /|'
+$'  .-----.\n  [^   ^]\n  o|━━━|o   📷\n   o   o    /|'
+$'  .-----.\n  [O   O]   ✨\n  o|━━━|o   📸\n   o   o    /|'
+$'  .-----.\\o\n  [o   o]\n   |━━━|    📷\n   o   o    /|'
+$'  .-----.\\o\n  [O   O]   ✨\n   |━━━|    📸\n   o   o    /|'
+$'        \\.-----./\n         [^   ^]\n   📷     |━━━|\n   /|     o   o'
+$'        \\.-----./\n   ✨    [O   O]\n   📸     |━━━|\n   /|     o   o'
+$'         .-----.\n         [o   o]\n   📷    o|━━━|\\\n   /|     o   o'
+$'         .-----.\n   ✨    [O   O]\n   📸    o|━━━|\\\n   /|     o   o'
+$'         .-----.\n         [^   ^]\n   📷    o|━━━|o\n   /|     o   o'
+$'         .-----.\n   ✨    [O   O]\n   📸    o|━━━|o\n   /|     o   o'
+$'       o/.-----.\n         [o   o]\n   📷     |━━━|\n   /|     o   o'
+$'       o/.-----.\n   ✨    [O   O]\n   📸     |━━━|\n   /|     o   o'
 )
 
 # Pick new state when current expires
@@ -103,7 +119,7 @@ if (( _robot_t >= _robot_dur )); then
   if [[ $_robot_state != walk ]]; then
     _robot_state=walk
   else
-    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek basketball campfire fishing coffee garden balloon goal concert ufo)
+    local -a states=(static blink wave sleep surprise smile dance jump moon catpeek basketball campfire fishing coffee garden balloon goal concert ufo photo)
     _robot_state=${states[$((RANDOM % ${#states} + 1))]}
   fi
   _robot_t=0
@@ -116,6 +132,7 @@ if (( _robot_t >= _robot_dur )); then
     basketball|ufo)         _w=18 ;;
     goal)                   _w=21 ;;
     balloon)                _w=16 ;;
+    photo)                  _w=16 ;;
     fishing)                _w=16 ;;
     campfire|coffee|garden) _w=13 ;;
     concert)                _w=14 ;;
@@ -143,6 +160,7 @@ if (( _robot_t >= _robot_dur )); then
     balloon)           _robot_dur=999 ;; # ends dynamically when balloon leaves screen
     goal)              _robot_dur=$(( (1 + RANDOM % 2) * 8 )) ;; # 1-2 kicks
     concert)           _robot_dur=$(( (3 + RANDOM % 3) * 4 )) ;; # 3-5 riffs
+    photo)             _robot_dur=$(( (2 + RANDOM % 2) * 8 )) ;; # 2-3 shoots
     ufo)               _robot_dur=999 ;; # ends dynamically when 🛸 leaves screen
     *)                 _robot_dur=$(( 8 + RANDOM % 18 )) ;;
   esac
@@ -171,6 +189,7 @@ case $_robot_state in
   balloon)  color=219 ;;  # balloon pink
   goal)     color=82  ;;  # pitch green
   concert)  color=135 ;;  # rock purple
+  photo)    color=231 ;;  # flashbulb white
   ufo)      color=51  ;;  # alien cyan
   slot)     color=226 ;;  # yellow (jackpot overrides below)
 esac
@@ -374,6 +393,12 @@ case $_robot_state in
     fi
     # All frames except the shocked hold are built in absolute columns.
     (( ${_ushock:-0} )) || local _robot_pos=0
+    ;;
+  photo)
+    # 8-tick photoshoot: 4 poses, each held (📷) then a flash (📸 + ✨, eyes O O).
+    # Mirrored variant stands the camera on the robot's left.
+    (( _robot_t == 0 )) && _robot_mirror=$(( RANDOM % 2 ))
+    raw=${idle_frames[$(( (_robot_mirror ? 83 : 75) + _robot_t % 8 ))]}
     ;;
   slot)
     # Reel symbols. 7️⃣ keycap is the jackpot — width matches the other 2-col
