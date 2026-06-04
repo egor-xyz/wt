@@ -44,11 +44,13 @@ Function files use zsh autoload convention: file name = function name, no
 
 ## Adding a new robot animation
 
-1. Add the frame(s) to `walk_frames` or `idle_frames` in `functions/crazy-robot`.
-2. Add the state name to the `states=(...)` array.
-3. Add a case branch picking the frame and (optionally) a color.
-4. If the state needs multi-tick choreography (spin-then-hold, fireworks,
-   etc.), keep state in `_robot_*` vars and gate on `_robot_t`.
+A robot state spans **two files and eight locations** — frames in
+`functions/crazy-robot` plus **two** `robot_order` lists in `functions/wtclaude`
+(miss one and the state plays randomly but is unreachable by ↑↓ stepping).
+
+Follow the project skill: **`.claude/skills/add-robot-animation/SKILL.md`**. It
+has the full touchpoint checklist, the left/right mirror convention, and the
+per-tick sweep test for eyeballing alignment.
 
 ## Testing
 
