@@ -59,13 +59,13 @@ local idle="" wt
 for repo_root in ${(k)repos}; do
   if [[ -z ${seen_cwd[$repo_root]} && -d $repo_root ]]; then
     local mt0=$(zstat -L +mtime -- "$repo_root" 2>/dev/null || stat -f %m "$repo_root" 2>/dev/null || echo 0)
-    idle+="${mt0}000	0	$repo_root	-"$'\n'
+    idle+="${mt0}000"$'\t0\t'"$repo_root"$'\t-\n'
     seen_cwd[$repo_root]=1
   fi
   for wt in $repo_root/.claude/worktrees/*(N/); do
     [[ -n ${seen_cwd[$wt]} ]] && continue
     local mt=$(zstat -L +mtime -- "$wt" 2>/dev/null || stat -f %m "$wt" 2>/dev/null || echo 0)
-    idle+="${mt}000	0	$wt	-"$'\n'
+    idle+="${mt}000"$'\t0\t'"$wt"$'\t-\n'
   done
 done
 
@@ -73,55 +73,107 @@ local lines="$live"
 [[ -n $idle ]] && lines+=$'\n'"${idle%$'\n'}"
 
 # Group by repo (strip /.claude/worktrees/<name>). Repo root first, then
-# worktrees indented. Repos ordered by newest activity. Output: cwd<TAB>name<TAB>indent
+# worktrees indented. Repos ordered by newest activity.
+# Output: cwd<TAB>name<TAB>indent<TAB>pid (pid 0 = no live session)
 lines=$(printf '%s\n' "$lines" | awk -F'\t' '
   {
     ts=$1; cwd=$3; name=$4
     repo=cwd; rank=0
     if (match(cwd, /\/\.claude\/worktrees\//)) { repo=substr(cwd,1,RSTART-1); rank=1 }
     if (!(repo in rts) || ts+0 > rts[repo]+0) rts[repo]=ts
-    e_repo[NR]=repo; e_rank[NR]=rank; e_ts[NR]=ts; e_cwd[NR]=cwd; e_name[NR]=name
+    e_repo[NR]=repo; e_rank[NR]=rank; e_ts[NR]=ts; e_cwd[NR]=cwd; e_name[NR]=name; e_pid[NR]=$2
   }
   END {
     for (i=1; i<=NR; i++)
-      printf "%s\t%s\t%s\t%s\t%s\t%s\n", rts[e_repo[i]], e_repo[i], e_rank[i], e_ts[i], e_cwd[i], e_name[i]
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", rts[e_repo[i]], e_repo[i], e_rank[i], e_ts[i], e_cwd[i], e_name[i], e_pid[i]
   }
-' | sort -t$'\t' -k1,1rn -k2,2 -k3,3n -k4,4rn | awk -F'\t' '{printf "%s\t%s\t%s\n", $5, $6, $3}')
+' | sort -t$'\t' -k1,1rn -k2,2 -k3,3n -k4,4rn | awk -F'\t' '{printf "%s\t%s\t%s\t%s\n", $5, $6, $3, $7}')
 
-local -a items is_last
-items=("${(@f)lines}")
-local count=${#items}
+local REPLY
+local -a base_items items is_last pins
+local -A branch
+local count=0 npin=0 lw=0 bw=0
+local tab=$'\t'
+base_items=("${(@f)lines}")
+local _wt_cfg=${XDG_CONFIG_HOME:-$HOME/.config}/wtclaude
+[[ -r $_wt_cfg/pins ]] && pins=(${(f)"$(<$_wt_cfg/pins)"})
 
-# Mark last worktree per repo group for tree-line rendering
-for ((i=1; i<=count; i++)); do
-  local -a fi=(${(s:	:)items[i]})
-  local cwd_i=${fi[1]} ind_i=${fi[3]}
-  if (( ind_i == 0 )); then
-    is_last[i]=0
-    continue
+# Branch per cwd, read straight from .git/HEAD (no git fork per row).
+# Worktrees have a .git file pointing at their gitdir.
+local _b _g _h
+for _b in $base_items; do
+  _b=${_b%%$'\t'*}; _g=$_b/.git
+  if [[ -f $_g ]]; then
+    _g=$(<$_g); _g=${_g#gitdir: }
+    [[ $_g == /* ]] || _g=$_b/$_g
   fi
-  local repo_i=${cwd_i%/.claude/worktrees/*}
-  if (( i == count )); then
-    is_last[i]=1
-  else
-    local -a fn=(${(s:	:)items[i+1]})
-    local cwd_n=${fn[1]} ind_n=${fn[3]}
-    local repo_n=${cwd_n%/.claude/worktrees/*}
-    if [[ $repo_n != $repo_i || $ind_n == 0 ]]; then
-      is_last[i]=1
-    else
-      is_last[i]=0
-    fi
+  _h=""
+  [[ -r $_g/HEAD ]] && _h=$(<$_g/HEAD)
+  if [[ $_h == "ref: refs/heads/"* ]]; then
+    branch[$_b]=${_h#ref: refs/heads/}
+  elif [[ -n $_h ]]; then
+    branch[$_b]=${_h[1,7]}
   fi
 done
+
+# Display name: worktree dir name, or repo basename for the repo root.
+_wt_label() {
+  if [[ $1 == */.claude/worktrees/* ]]; then
+    REPLY=${1##*/.claude/worktrees/}; REPLY=${REPLY%%/*}
+  else
+    REPLY=${1:t}
+  fi
+}
+_wt_trunc() {
+  if (( $2 <= 0 )); then REPLY=""
+  elif (( ${#1} > $2 )); then REPLY="${1[1,$2-1]}…"
+  else REPLY=$1; fi
+}
+
+# items = pinned rows (base order) followed by the rest. Recomputes tree
+# markers (is_last) and column widths. Call after pins or base_items change.
+_wt_build() {
+  local -A pset
+  local -a rest f
+  local p r i cwd_i cwd_n
+  for p in $pins; do pset[$p]=1; done
+  items=()
+  for r in $base_items; do
+    if [[ -n ${pset[${r%%$'\t'*}]} ]]; then items+=("$r"); else rest+=("$r"); fi
+  done
+  npin=${#items}
+  items+=("${rest[@]}")
+  count=${#items}
+  is_last=() lw=0 bw=0
+  for ((i=1; i<=count; i++)); do
+    f=("${(@ps:\t:)items[i]}"); cwd_i=${f[1]}
+    _wt_label $cwd_i
+    (( ${#REPLY} + 3 > lw )) && lw=$(( ${#REPLY} + 3 ))
+    p=${branch[$cwd_i]}
+    (( ${#p} > bw )) && bw=${#p}
+    is_last[i]=0
+    (( i <= npin || f[3] == 0 )) && continue
+    if (( i == count )); then is_last[i]=1; continue; fi
+    f=("${(@ps:\t:)items[i+1]}"); cwd_n=${f[1]}
+    [[ ${cwd_n%/.claude/worktrees/*} != ${cwd_i%/.claude/worktrees/*} || ${f[3]} == 0 ]] && is_last[i]=1
+  done
+}
+_wt_build
 
 local pick
 if (( count == 1 )); then
   pick=${items[1]}
 else
-  local sel=1 key seq aborted=0 focused=1 mode=list ssel=1
-  local _prev_lines=0 _prev_cols=0 _list_off=0
-  local -a settings_keys settings_labels settings_types settings_enum
+  local sel=1 key seq aborted=0 focused=1 mode=list ssel=1 asel=1 dforce=0 derr=""
+  # Background delete: dcwd/drepo target, dtmp holds out+rc, dstart/dspin
+  # drive the spinner, dfiles lists uncommitted changes for the force step.
+  local dcwd="" drepo="" dtmp="" dstart=0 dspin=0
+  local -a dfiles
+  local _prev_lines=0 _prev_cols=0 _list_off=0 _wt_msg=""
+  # Mouse hit-testing: _top = lines drawn above the mode content, _y0 = screen
+  # row (1-based) of the first clickable list row / action, _vh = list rows.
+  local _top=0 _y0=0 _vh=1
+  local -a settings_keys settings_labels settings_types settings_enum acts
   settings_keys=(_WT_CHECK_NOW WTCLAUDE_NO_ROBOT WTCLAUDE_AUTO_UPDATE)
   settings_labels=("Check for updates" "Robot animation" "Auto-update")
   settings_types=(action invbool bool)
@@ -130,28 +182,187 @@ else
   # (egor-xyz/robot) provides crazy-robot; the mascot then dances while you pick.
   local _robot_state="walk" _robot_t=0 _robot_dur=6 _robot_pos=0 _robot_dir=1 _robot_mirror=0
 
-  # Type-to-filter: query matched as a case-insensitive substring against each
-  # item's display label (worktree/repo name + optional session name). midx
-  # holds the indices of items[] that match; sel indexes into midx.
+  # 24-bit palette. Raw escapes + printf '%s' — never print -P for row content.
+  local E=$'\e'
+  local c_acc="${E}[38;2;255;175;95m" c_cyan="${E}[38;2;95;215;255m" c_br="${E}[38;2;135;175;215m"
+  local c_live="${E}[38;2;135;215;135m" c_dim="${E}[38;2;128;128;128m" c_dim2="${E}[38;2;88;88;88m"
+  local c_red="${E}[38;2;255;95;95m" c_warn="${E}[38;2;255;215;95m" c_fg="${E}[39m"
+  local c_b="${E}[1m" c_it="${E}[3m" c_nb="${E}[22;23m" c_rst="${E}[0m"
+  local bg_sel="${E}[48;2;58;48;38m" bg_key="${E}[48;2;52;52;52m" bg_0="${E}[49m"
+
+  # Type-to-filter: every space-separated term must appear (case-insensitive)
+  # in the row's name, repo name, branch or session name. midx holds the indices
+  # of items[] that match; sel indexes into midx.
   local query=""
   local -a midx
   local mcount=$count
   _wt_filter() {
     midx=()
-    local qq=${query:l} j lab
-    local -a ff
+    local -a terms=(${=${query:l}}) ff
+    local j t hay ok
     for ((j=1; j<=count; j++)); do
-      ff=(${(s:	:)items[j]})
-      lab=${ff[1]}
-      if [[ ${ff[1]} == */worktrees/* ]]; then
-        lab=${ff[1]##*/worktrees/}; lab=${lab%%/*}
-      fi
-      [[ -n ${ff[2]} && ${ff[2]} != - ]] && lab+=" ${ff[2]}"
-      [[ -z $qq || ${lab:l} == *$qq* ]] && midx+=$j
+      ff=("${(@ps:\t:)items[j]}")
+      _wt_label ${ff[1]}
+      hay="$REPLY ${${ff[1]%/.claude/worktrees/*}:t} ${branch[${ff[1]}]}"
+      [[ ${ff[2]} != - ]] && hay+=" ${ff[2]}"
+      hay=${hay:l}; ok=1
+      for t in $terms; do
+        [[ $hay == *"$t"* ]] || { ok=0; break; }
+      done
+      (( ok )) && midx+=$j
     done
     mcount=${#midx}
     (( sel > mcount )) && sel=$mcount
     (( sel < 1 )) && sel=1
+  }
+  # Move sel onto the row whose cwd is $1 (if visible).
+  _wt_select() {
+    local j
+    for ((j=1; j<=mcount; j++)); do
+      [[ ${items[${midx[j]}]%%$'\t'*} == $1 ]] && { sel=$j; return; }
+    done
+  }
+
+  # Terminal APIs (Ghostty, cmux, iTerm2, WezTerm, Windows Terminal; others
+  # ignore them): OSC 9;4 tab/dock progress (3 busy, 0 clear, 2 error) and
+  # OSC 777 desktop notification (shown when the window is not focused).
+  _wt_progress() { printf '\e]9;4;%s\a' "$1"; }
+  _wt_notify() { printf '\e]777;notify;%s;%s\a' "${1//;/,}" "${2//;/,}"; }
+
+  _wt_save_pins() {
+    mkdir -p "$_wt_cfg" 2>/dev/null
+    if (( ${#pins} )); then print -rl -- $pins > "$_wt_cfg/pins"; else : > "$_wt_cfg/pins"; fi
+  }
+  _wt_toggle_pin() {
+    local cwd=${items[${midx[sel]}]%%$'\t'*}
+    _wt_label $cwd
+    if (( ${pins[(Ie)$cwd]} )); then
+      pins=("${(@)pins:#${(b)cwd}}"); _wt_msg="unpinned $REPLY"
+    else
+      pins=("$cwd" $pins); _wt_msg="📌 pinned $REPLY"
+    fi
+    _wt_save_pins
+    _wt_build; _wt_filter; _wt_select $cwd
+  }
+  # Delete steps, each behind its own y-confirm:
+  #   dforce=0  git worktree remove
+  #   dforce=1  git worktree remove --force  (git refused and suggested it)
+  #   dforce=2  sudo rm -rf <worktree> + git worktree prune as the user
+  #             (any other failure, e.g. root-owned files). Leaves the alt
+  #             screen so sudo can prompt for the password.
+  _wt_delete() {
+    local cwd=${items[${midx[sel]}]%%$'\t'*}
+    local repo=${cwd%/.claude/worktrees/*} out rc
+    # A session may run in a subdir; always act on the worktree root.
+    cwd=$repo/.claude/worktrees/${${cwd#$repo/.claude/worktrees/}%%/*}
+    [[ $cwd == $repo/.claude/worktrees/[^/]## ]] || { mode=actions; _wt_msg="not a worktree"; return; }
+    dcwd=$cwd drepo=$repo
+    _wt_progress 3
+    if (( dforce == 2 )); then
+      printf '\e[?7h\e[?25h\e[?1000l\e[?1006l\e[?1049l'
+      print -r -- "wtclaude: sudo rm -rf $cwd (this can take a while)"
+      out=$(sudo rm -rf -- "$cwd" 2>&1); rc=$?
+      (( rc == 0 )) && git -C "$repo" worktree prune 2>/dev/null
+      printf '\e[?1049h\e[?25l\e[?7l\e[?1000h\e[?1006h\e[2J'
+      _wt_delete_done $rc "$out"
+      return
+    fi
+    # git can take long on big trees (node_modules): run it in the
+    # background and let the main loop animate a spinner until rc appears.
+    dtmp=$(mktemp -d "${TMPDIR:-/tmp}/wtclaude.XXXXXX") || { mode=actions; _wt_msg="delete failed: mktemp"; return; }
+    local -a cmd=(git -C "$repo" worktree remove)
+    (( dforce )) && cmd+=(--force)
+    cmd+=("$cwd")
+    { "${cmd[@]}" > "$dtmp/out" 2>&1; print $? > "$dtmp/rc.tmp"; mv "$dtmp/rc.tmp" "$dtmp/rc"; } &!
+    mode=deleting dstart=$SECONDS dspin=0
+  }
+  # Result of a delete step: $1 exit code, $2 output.
+  _wt_delete_done() {
+    local rc=$1 out=$2 cwd=$dcwd repo=$drepo
+    _wt_progress 0
+    _wt_label $cwd; local lab=$REPLY
+    out=${${out%%$'\n'*}//$cwd/…/$lab}
+    if (( rc == 0 )); then
+      [[ $PWD == $cwd || $PWD == $cwd/* ]] && cd "$repo"
+      base_items=("${(@)base_items:#${(b)cwd}(/*|)${tab}*}")
+      pins=("${(@)pins:#${(b)cwd}(/*|)}"); _wt_save_pins
+      _wt_build; _wt_filter
+      mode=list; _wt_msg="✓ deleted $lab"
+      _wt_notify wtclaude "Deleted worktree $lab"
+    elif (( dforce == 0 )) && [[ $out == *force* ]]; then
+      mode=confirm dforce=1 derr=$out
+      dfiles=("${(@f)$(git -C "$cwd" status --short 2>/dev/null)}")
+      [[ -z ${dfiles[1]} ]] && dfiles=()
+    elif (( dforce < 2 && ${+commands[sudo]} )) && [[ $out != *locked* ]]; then
+      mode=confirm dforce=2 derr=$out
+    else
+      mode=actions; _wt_msg="delete failed: $out"
+      _wt_progress "2;100"; _wt_notify wtclaude "Delete failed: $lab"
+    fi
+  }
+  # Box line(s) for long text: wraps to the box width, at most $3 lines.
+  _wt_box_wrap() {
+    local t=$1 style=$2 max=${3:-3} iw=$(( bw_box - 4 )) n=0
+    while [[ -n $t ]] && (( n < max )); do
+      (( n++ ))
+      if (( n == max )); then _wt_trunc "$t" $iw; else REPLY=${t[1,iw]}; fi
+      _wt_box_line "${style}${REPLY}" ${#REPLY}
+      t=${t[iw+1,-1]}
+    done
+  }
+  _wt_acts() {
+    local -a f=("${(@ps:\t:)items[${midx[sel]}]}")
+    acts=(go)
+    if (( ${pins[(Ie)${f[1]}]} )); then acts+=(unpin); else acts+=(pin); fi
+    (( f[3] == 1 )) && acts+=(delete)
+  }
+
+  # Footer: key chips. Args: key label key label ...
+  _wt_keys() {
+    local out=""
+    while (( $# >= 2 )); do
+      out+="${bg_key}${c_fg} $1 ${bg_0}${c_dim} $2${c_fg}  "
+      shift 2
+    done
+    printf '%s\e[K\n' "$out"
+  }
+  # Status line above the footer (blank when no message).
+  _wt_msg_line() {
+    if [[ -n $_wt_msg ]]; then printf ' %s%s%s\e[K\n' "$c_acc" "$_wt_msg" "$c_fg"
+    else printf '\e[K\n'; fi
+  }
+  # Rounded box. _wt_box_top title color width; _wt_box_line styled plain;
+  # _wt_box_sep; _wt_box_bot. bw_box/bc_box set by _wt_box_top.
+  local bw_box=40 bc_box=""
+  _wt_box_top() {
+    bc_box=$2; bw_box=$3
+    local t=" $1 " fill=$(( $3 - ${#1} - 5 ))
+    (( fill < 0 )) && fill=0
+    printf ' %s╭─%s%s%s%s%s%s╮%s\e[K\n' "$bc_box" "$c_fg$c_b" "$t" "$c_nb" "$bc_box" "${(l:fill::─:)${:-}}" "" "$c_fg"
+  }
+  _wt_box_line() {
+    local pad=$(( bw_box - 4 - ${2:-${#1}} ))
+    (( pad < 0 )) && pad=0
+    printf ' %s│%s %s%s%*s %s│%s\e[K\n' "$bc_box" "$c_fg" "$1" "$c_rst" $pad "" "$bc_box" "$c_fg"
+  }
+  _wt_box_sep() { printf ' %s├%s┤%s\e[K\n' "$bc_box" "${(l:bw_box-2::─:)${:-}}" "$c_fg"; }
+  _wt_box_bot() { printf ' %s╰%s╯%s\e[K\n' "$bc_box" "${(l:bw_box-2::─:)${:-}}" "$c_fg"; }
+  # Box line for the selected row's details (path is an OSC 8 file link).
+  _wt_box_info() {
+    local -a f=("${(@ps:\t:)items[${midx[sel]}]}")
+    local iw=$(( bw_box - 4 )) br=${branch[${f[1]}]} tp=${f[1]/#$HOME/~} sn=${f[2]}
+    if [[ -n $br ]]; then
+      _wt_trunc "$br" $(( iw - 2 )); _wt_box_line "${c_br}⎇ $REPLY" $(( ${#REPLY} + 2 ))
+    fi
+    if (( f[4] )); then
+      [[ $sn == - ]] && sn="live"
+      _wt_trunc "$sn" $(( iw - 17 ))
+      _wt_box_line "${c_live}● $REPLY ${c_dim}claude running" $(( ${#REPLY} + 17 ))
+    else
+      _wt_box_line "${c_dim}○ no claude session" 19
+    fi
+    _wt_trunc "$tp" $iw
+    _wt_box_line "${c_dim}${c_it}${E}]8;;file://${HOST}${f[1]}${E}\\${REPLY}${E}]8;;${E}\\${c_nb}" ${#REPLY}
   }
 
   # Helper: persist current settings vars to ~/.config/wtclaude/settings
@@ -224,8 +435,13 @@ else
   }
 
   _wt_filter
-  printf '\e[?1049h\e[?25l\e[?1004h'
-  trap 'printf "\e[?25h\e[?1049l\e[?1004l"' EXIT INT TERM
+  # Alt screen, hide cursor, focus events, no autowrap (long rows clip
+  # instead of wrapping and scrolling the frame).
+  # Also push the window title (CSI 22 t) and set it; popped on exit.
+  # Mouse: 1000 = button press/release, 1006 = SGR coordinates.
+  printf '\e[?1049h\e[?25l\e[?1004h\e[?7l\e[?1000h\e[?1006h\e[22;0t\e]2;wtclaude\a'
+  trap 'printf "\e[?7h\e[?25h\e[?1000l\e[?1006l\e[?1049l\e[?1004l\e[23;0t\e]9;4;0\a"' EXIT
+  trap 'return 130' INT TERM
   while true; do
     if (( focused )); then
       # Query terminal size directly; $LINES/$COLUMNS may not refresh
@@ -233,6 +449,9 @@ else
       local _sz="$(stty size 2>/dev/null)"
       local rows=${${_sz%% *}:-${LINES:-24}}
       local cols=${${_sz##* }:-${COLUMNS:-80}}
+      # Synchronized output: terminals that support it paint the frame at
+      # once (no flicker); others ignore the sequence.
+      printf '\e[?2026h'
       if (( cols != _prev_cols || rows != _prev_lines )); then
         printf '\e[2J'
         _prev_cols=$cols
@@ -243,10 +462,13 @@ else
       # While filtering, the typed query takes the mascot's spot. The mascot
       # dances only when the optional `robot` plugin provides crazy-robot;
       # otherwise this row stays blank.
+      _top=1
       if [[ $mode == list && -n $query ]]; then
-        print -P "%F{208}/%f${query}%F{244}▏%f"$'\e[K'
+        (( _top += 1 ))
+        printf ' %s❯%s %s%s▏%s\e[K\n' "$c_acc" "$c_fg" "$query" "$c_dim" "$c_fg"
       elif [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && (( ${+functions[crazy-robot]} )); then
         crazy-robot $track
+        (( _top += 4 ))
       fi
       local sep_w=$(( cols - 2 ))
       local vtag=""
@@ -263,24 +485,27 @@ else
         print -P "%F{240}─${sep}%F{238}${vtag}%f"$'\e[K'
       fi
       if [[ -n $_wt_restart_tag ]]; then
+        (( _top += 1 ))
         print -P "%F{109}  ↻ v${_wt_restart_tag} ready · restart shell to apply%f"$'\e[K'
       fi
       if [[ $mode == list ]]; then
         # Viewport: only render rows that fit. Above the list we draw the
         # mascot (4 lines, only when the robot plugin provides crazy-robot) —
-        # or, while filtering, a 1-line query prompt — plus the separator (1)
-        # and optional restart banner; below it a blank line + footer (2), plus
-        # 1 spare so the footer's trailing newline doesn't scroll the terminal.
+        # or, while filtering, a 1-line query prompt — plus the separator (1),
+        # column header (1) and optional restart banner; below it a status
+        # line + footer (2), plus 1 spare so the footer's trailing newline
+        # doesn't scroll the terminal.
         # Scroll window to keep sel visible. sel/_vstart/_vend index into midx
         # (the filtered view), not items directly.
-        local _ov=4
+        local _ov=5
         if [[ -n $query ]]; then
           (( _ov += 1 ))
         elif [[ ${WTCLAUDE_NO_ROBOT:-0} != 1 ]] && (( ${+functions[crazy-robot]} )); then
           (( _ov += 4 ))
         fi
         [[ -n $_wt_restart_tag ]] && (( _ov += 1 ))
-        local _vh=$(( rows - _ov )); (( _vh < 1 )) && _vh=1
+        _vh=$(( rows - _ov )); (( _vh < 1 )) && _vh=1
+        _y0=$(( _top + 2 ))
         if (( mcount <= _vh )); then
           _list_off=0
         else
@@ -289,58 +514,152 @@ else
           (( _list_off > mcount - _vh )) && _list_off=$(( mcount - _vh ))
           (( _list_off < 0 )) && _list_off=0
         fi
+        # Columns: [bar][tree/pin][name]  ⎇ branch  ● session
+        local _nw=$(( lw + 3 )) _bw=0 _sw
+        (( _nw > cols * 45 / 100 )) && _nw=$(( cols * 45 / 100 ))
+        (( bw > 0 )) && _bw=$(( bw + 4 ))
+        (( _bw > 40 )) && _bw=40
+        _sw=$(( cols - _nw - _bw - 1 )); (( _sw < 0 )) && _sw=0
+        printf '%s%s%s%s%s%s\e[K\n' "$c_dim2" "$c_it" "${(r:_nw:: :)${:-  worktree}}" \
+          "${(r:_bw:: :)${:-branch}}" "session" "$c_rst"
         if (( mcount == 0 )); then
-          print -P "%F{244}  no matches%f"$'\e[K'
+          printf '  %sno matches%s\e[K\n' "$c_dim" "$c_fg"
         fi
         local _vstart=$(( _list_off + 1 ))
         local _vend=$(( _list_off + _vh )); (( _vend > mcount )) && _vend=mcount
         local _p
         for ((_p=_vstart; _p<=_vend; _p++)); do
           local i=${midx[_p]}
-          local row=${items[i]}
-          local -a fields=(${(s:	:)row})
-          local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]}
-          local label=$rcwd
-          if [[ $rcwd == */worktrees/* ]]; then
-            label=${rcwd##*/worktrees/}
-            label=${label%%/*}
-          fi
-          local prefix=""
-          if (( rind == 1 )); then
-            if (( is_last[i] )); then
-              prefix="%F{244}└─%f "
-            else
-              prefix="%F{244}├─%f "
-            fi
+          local -a fields=("${(@ps:\t:)items[i]}")
+          local rcwd=${fields[1]} rname=${fields[2]} rind=${fields[3]} rpid=${fields[4]}
+          _wt_label $rcwd
+          local lab=$REPLY pre pw=3 bar=" " rowbg="" ncol=""
+          if (( i <= npin )); then
+            pre="📌 "
+          elif (( rind == 1 )); then
+            if (( is_last[i] )); then pre="${c_dim2}└─ ${c_fg}"; else pre="${c_dim2}├─ ${c_fg}"; fi
           else
-            prefix="%F{51}●%f "
+            pre="${c_cyan}◆${c_fg} "; pw=2
           fi
-          local suffix=""
-          [[ -n $rname && $rname != "-" ]] && suffix="  %F{244}(${rname})%f"
+          (( rind == 0 )) && ncol=$c_b
           if (( _p == sel )); then
-            print -P "${prefix}%F{214}${label}%f${suffix}"$'\e[K'
-          else
-            print -P "${prefix}${label}${suffix}"$'\e[K'
+            bar="${c_acc}▌${c_fg}"; rowbg=$bg_sel; ncol+=$c_acc
           fi
+          local nwid=$(( _nw - pw - 1 ))
+          _wt_trunc "$lab" $(( nwid - 2 )); lab=${(r:nwid:: :)REPLY}
+          local bcell="" br=${branch[$rcwd]}
+          if (( _bw )); then
+            if [[ -n $br ]]; then _wt_trunc "$br" $(( _bw - 4 )); bcell="⎇ $REPLY"; fi
+            bcell=${(r:_bw:: :)bcell}
+          fi
+          local scell=""
+          if (( rpid )); then
+            local sn=$rname; [[ $sn == - ]] && sn="live"
+            _wt_trunc "$sn" $(( _sw - 2 )); scell="● $REPLY"
+          fi
+          printf '%s%s%s%s%s%s%s%s%s%s%s\e[K%s\n' "$rowbg" "$bar" "$pre" "$ncol" "$lab" \
+            "$c_nb$c_fg" "$c_br" "$bcell" "$c_live" "$scell" "$c_fg" "$c_rst"
         done
-        print -P ""$'\e[K'
-        local _scroll=""
-        (( mcount > _vh )) && _scroll=" · %F{208}${sel}/${mcount}%F{244}"
+        _wt_msg_line
         if [[ -n $query ]]; then
-          print -P "%F{244}type to filter · ⌫ delete · Enter pick · Esc clear${_scroll}%f"$'\e[K'
+          _wt_keys "⏎" go "→" actions "⌫" erase "esc" clear
         else
-          print -P "%F{244}↑↓ navigate · Enter pick · → settings · type to filter · Esc quit${_scroll}%f"$'\e[K'
+          _wt_keys "↑↓" move "⏎" go "→" actions "←" settings "a-z" search "esc" quit
+        fi
+        (( mcount > _vh )) && printf '\e[1A\e[%dG%s%d/%d%s\n' $(( cols - 10 )) "$c_dim" $sel $mcount "$c_fg"
+      elif [[ $mode == actions || $mode == confirm || $mode == deleting ]]; then
+        local -a af=("${(@ps:\t:)items[${midx[sel]}]}")
+        local W=$(( cols - 2 )); (( W > 100 )) && W=100; (( W < 24 )) && W=24
+        _wt_label ${af[1]}
+        local alab=$REPLY
+        _wt_trunc "$alab" $(( W - 8 )); alab=$REPLY
+        printf '\e[K\n'
+        if [[ $mode == deleting ]]; then
+          local -a spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+          local el=$(( SECONDS - dstart ))
+          _wt_box_top "Deleting worktree…" "$c_acc" $W
+          _wt_box_line "${c_b}${alab}${c_nb}" ${#alab}
+          _wt_box_info
+          _wt_box_line "${c_acc}${spin[dspin % 10 + 1]}${c_fg} removing files… ${c_dim}${el}s" $(( 19 + ${#el} ))
+          (( el >= 3 )) && _wt_box_line "${c_dim}big folders (node_modules) can take a minute" 44
+          _wt_box_bot
+          printf '\e[K\n'
+          _wt_msg_line
+          printf ' %splease wait…%s\e[K\n' "$c_dim" "$c_fg"
+        elif [[ $mode == actions ]]; then
+          _wt_box_top "$alab" "$c_dim2" $W
+          _wt_box_info
+          _wt_box_sep
+          _y0=$(( _top + 6 ))
+          [[ -n ${branch[${af[1]}]} ]] && (( _y0++ ))
+          local ai al ap
+          for ((ai=1; ai<=${#acts}; ai++)); do
+            case ${acts[ai]} in
+              go)     al="Go to $([[ ${af[3]} == 1 ]] && echo worktree || echo repo)"; ap=$al ;;
+              pin)    al="Pin to top"; ap=$al ;;
+              unpin)  al="Unpin"; ap=$al ;;
+              delete) al="${c_red}Delete worktree…"; ap="Delete worktree…" ;;
+            esac
+            if (( ai == asel )); then
+              _wt_box_line "${c_acc}❯ ${c_fg}${c_b}${al}${c_nb}" $(( ${#ap} + 2 ))
+            else
+              _wt_box_line "  ${al}" $(( ${#ap} + 2 ))
+            fi
+          done
+          _wt_box_bot
+          printf '\e[K\n'
+          _wt_msg_line
+          _wt_keys "↑↓" move "⏎" select "←" back "esc" back
+        else
+          if (( dforce == 2 )); then
+            _wt_box_top "Delete with sudo?" "$c_red" $W
+          elif (( dforce )); then
+            _wt_box_top "Force delete worktree?" "$c_red" $W
+          else
+            _wt_box_top "Delete worktree?" "$c_red" $W
+          fi
+          _wt_box_line "${c_b}${alab}${c_nb}" ${#alab}
+          _wt_box_info
+          if (( af[4] )) && kill -0 ${af[4]} 2>/dev/null; then
+            _wt_box_line "${c_warn}⚠ a claude session is running here (pid ${af[4]})" $(( 41 + ${#af[4]} ))
+          fi
+          if (( dforce )); then
+            _wt_box_wrap "⚠ $derr" "$c_warn" 3
+            if (( dforce == 1 && ${#dfiles} )); then
+              _wt_box_line "${c_fg}${#dfiles} changed file(s):" $(( 17 + ${#${#dfiles}} ))
+              local df
+              for df in ${dfiles[1,8]}; do
+                _wt_trunc "$df" $(( W - 6 ))
+                _wt_box_line "  ${c_warn}${REPLY[1,2]}${c_dim}${REPLY[3,-1]}" $(( ${#REPLY} + 2 ))
+              done
+              (( ${#dfiles} > 8 )) && _wt_box_line "  ${c_dim}… and $(( ${#dfiles} - 8 )) more" $(( 13 + ${#$(( ${#dfiles} - 8 ))} ))
+            fi
+            (( dforce == 2 )) && _wt_box_line "${c_red}runs: sudo rm -rf <path>, then git worktree prune" 49
+            _wt_box_line "${c_red}uncommitted changes will be lost" 32
+          else
+            _wt_box_line "${c_dim}runs: git worktree remove" 25
+          fi
+          _wt_box_bot
+          printf '\e[K\n'
+          _wt_msg_line
+          if (( dforce == 2 )); then
+            _wt_keys "y" "sudo delete" "n" cancel "esc" cancel
+          elif (( dforce )); then
+            _wt_keys "y" "force delete" "n" cancel "esc" cancel
+          else
+            _wt_keys "y" delete "n" cancel "esc" cancel
+          fi
         fi
       else
         # Settings panel
         print -P "%F{244}Settings%f"$'\e[K'
         print -P ""$'\e[K'
-        local lw=$(( cols > 40 ? 30 : cols / 2 ))
+        local slw=$(( cols > 40 ? 30 : cols / 2 ))
         for ((i=1; i<=scount; i++)); do
           local sk=${settings_keys[i]} sl=${settings_labels[i]} st=${settings_types[i]}
           local sv=$(_wt_setting_value $sk $st)
           local pad=""
-          local need=$(( lw - ${#sl} ))
+          local need=$(( slw - ${#sl} ))
           (( need < 1 )) && need=1
           for ((_p=0; _p<need; _p++)); do pad+=" "; done
           local vcolor=244
@@ -362,19 +681,33 @@ else
           fi
         done
         print -P ""$'\e[K'
-        print -P "%F{244}↑↓ navigate · Enter toggle · ← back · Esc quit%f"$'\e[K'
+        _wt_keys "↑↓" move "⏎" toggle "→" back "esc" back
       fi
-      printf '\e[J'
+      printf '\e[J\e[?2026l'
     fi
     # Run deferred update check now so "checking..." has been drawn
     if (( _wt_pending_check )); then
       _wt_pending_check=0
+      _wt_progress 3
       _wt_check_now
+      _wt_progress 0
+      [[ $_wt_check_msg == "updated to "* ]] && _wt_notify wtclaude "$_wt_check_msg"
       continue
     fi
     # Read with animation timeout when focused; block longer when blurred
+    if [[ $mode == deleting ]]; then
+      if [[ -f $dtmp/rc ]]; then
+        _wt_delete_done "$(<$dtmp/rc)" "$(<$dtmp/out)"
+        rm -rf -- "$dtmp"; dtmp=""
+        [[ $mode == actions ]] && _wt_acts
+        printf '\e[H\e[J'
+        continue
+      fi
+      (( dspin++ ))
+    fi
     local _timeout
-    if (( focused )); then _timeout=0.25; else _timeout=5; fi
+    if [[ $mode == deleting ]]; then _timeout=0.1
+    elif (( focused )); then _timeout=0.25; else _timeout=5; fi
     if ! read -t $_timeout -k1 -s key 2>/dev/null; then
       continue
     fi
@@ -385,16 +718,71 @@ else
         seq+=$c
         [[ ${#seq} -ge 3 ]] && break
       done
+      # SGR mouse report: ESC [ < btn ; x ; y (M press | m release)
+      if [[ $seq == $'\e[<' ]]; then
+        while read -t 0.05 -k1 -s c 2>/dev/null; do
+          seq+=$c
+          [[ $c == [Mm] || ${#seq} -ge 24 ]] && break
+        done
+      fi
     fi
+    # Focus events never count as a keypress (they must not cancel a confirm).
+    case $seq in
+      $'\e[I') focused=1; continue ;;
+      $'\e[O') focused=0; continue ;;
+    esac
+    # Mouse. Left click selects, a click on the selected row goes there;
+    # right click opens actions; wheel moves. Clicks act on button release
+    # (so no release is left over for the shell after the picker exits);
+    # a mouse event never confirms a delete (confirm needs the y key).
+    if [[ $seq == $'\e[<'* ]]; then
+      local -a mp=(${(s:;:)${${seq#$'\e[<'}%?}})
+      local mb=${mp[1]} my=${mp[3]} mi
+      if [[ $mb == <0-2> ]]; then [[ $seq == *M ]] && continue
+      else [[ $seq == *m ]] && continue; fi
+      case $mode in
+        list)
+          case $mb in
+            64) (( sel > 1 )) && (( sel-- )) ;;
+            65) (( sel < mcount )) && (( sel++ )) ;;
+            0|2)
+              mi=$(( _list_off + my - _y0 + 1 ))
+              if (( my >= _y0 && my - _y0 < _vh && mi >= 1 && mi <= mcount )); then
+                if (( mb == 2 )); then
+                  sel=$mi; mode=actions; asel=1; _wt_acts; printf '\e[H\e[J'
+                elif (( mi == sel )); then
+                  break
+                else
+                  sel=$mi
+                fi
+              fi ;;
+          esac
+          continue ;;
+        actions)
+          case $mb in
+            64) (( asel > 1 )) && (( asel-- )); continue ;;
+            65) (( asel < ${#acts} )) && (( asel++ )); continue ;;
+            2)  mode=list; printf '\e[H\e[J'; continue ;;
+            0)
+              mi=$(( my - _y0 + 1 ))
+              (( mi >= 1 && mi <= ${#acts} )) || continue
+              asel=$mi; seq=$'\r' ;;
+            *) continue ;;
+          esac ;;
+        *) continue ;;
+      esac
+    fi
+    # While deleting, every key is ignored until git finishes.
+    [[ $mode == deleting ]] && continue
+    _wt_msg=""
     if [[ $mode == list ]]; then
       # Printable keys filter the list; vim-style j/k/h/l aliases are dropped
       # here so those letters type into the query instead.
       case $seq in
-        $'\e[I') focused=1 ;;
-        $'\e[O') focused=0 ;;
         $'\e[A') (( mcount > 0 )) && (( sel = sel == 1 ? mcount : sel - 1 )) ;;
         $'\e[B') (( mcount > 0 )) && (( sel = sel == mcount ? 1 : sel + 1 )) ;;
-        $'\e[C') mode=settings; ssel=1; printf '\e[H\e[J' ;;
+        $'\e[C') (( mcount > 0 )) && { mode=actions; asel=1; _wt_acts; printf '\e[H\e[J'; } ;;
+        $'\e[D') mode=settings; ssel=1; printf '\e[H\e[J' ;;
         $'\n'|$'\r') (( mcount > 0 )) && break ;;
         $'\x7f'|$'\b')
           [[ -n $query ]] && { query=${query%?}; _wt_filter; printf '\e[H\e[J'; }
@@ -409,27 +797,51 @@ else
           fi
           ;;
       esac
+    elif [[ $mode == actions ]]; then
+      case $seq in
+        $'\e[A'|k) (( asel = asel == 1 ? ${#acts} : asel - 1 )) ;;
+        $'\e[B'|j) (( asel = asel == ${#acts} ? 1 : asel + 1 )) ;;
+        $'\n'|$'\r'|$'\e[C')
+          case ${acts[asel]} in
+            go) break ;;
+            pin|unpin) _wt_toggle_pin; mode=list ;;
+            delete) mode=confirm; dforce=0; derr=""; dfiles=() ;;
+          esac
+          printf '\e[H\e[J'
+          ;;
+        $'\e[D'|h|$'\e'|q) mode=list; printf '\e[H\e[J' ;;
+      esac
+    elif [[ $mode == confirm ]]; then
+      # Only an explicit y deletes; any other key cancels.
+      case $seq in
+        y|Y) _wt_delete ;;
+        *)   mode=actions; _wt_msg="delete cancelled" ;;
+      esac
+      [[ $mode == actions ]] && _wt_acts
+      printf '\e[H\e[J'
     else
       case $seq in
-        $'\e[I') focused=1 ;;
-        $'\e[O') focused=0 ;;
         $'\e[A'|k) (( ssel = ssel == 1 ? scount : ssel - 1 )) ;;
         $'\e[B'|j) (( ssel = ssel == scount ? 1 : ssel + 1 )) ;;
         $'\n'|$'\r'|' ')
           _wt_setting_toggle ${settings_keys[ssel]} ${settings_types[ssel]}
           _wt_save_settings
           ;;
-        $'\e[D'|h) mode=list; printf '\e[H\e[J' ;;
+        $'\e[C'|l) mode=list; printf '\e[H\e[J' ;;
         $'\e'|q|Q) mode=list; printf '\e[H\e[J' ;;
       esac
     fi
   done
+  # Stop mouse reports, drop any input still queued, then restore terminal
+  printf '\e[?1000l\e[?1006l'
+  local _drain
+  while read -t 0.05 -k1 -s _drain 2>/dev/null; do :; done
   # Leave alternate screen + show cursor + restore terminal
-  printf '\e[?25h\e[?1049l\e[?1004l'
+  printf '\e[?7h\e[?25h\e[?1000l\e[?1006l\e[?1049l\e[?1004l\e[23;0t\e]9;4;0\a'
   trap - EXIT INT TERM
   (( aborted )) && return 1
   pick=${items[${midx[sel]}]}
 fi
 
-local cwd=${${(s:	:)pick}[1]}
+local cwd=${pick%%$'\t'*}
 [[ -d $cwd ]] && cd "$cwd" || { echo "bad cwd: $cwd"; return 1; }
