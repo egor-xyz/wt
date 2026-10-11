@@ -28,8 +28,10 @@ Want a robot to dance while you pick? Install the optional
 - 🌳 **Worktree-aware grouping.** Sessions cluster under their parent repo as a tree.
 - 💀 **Dead sessions filtered.** Only live PIDs show up.
 - 🗂️ **Idle worktrees too.** Every worktree under a known repo, not just the running ones.
-- 🔎 **Type-to-filter.** Just start typing to narrow the list.
-- ⌨️ **Pure keyboard.** Arrows, `Enter`, `→` for settings, `q`. No mouse, no config.
+- 🔎 **Search everything.** Type to filter by worktree, repo, branch, session name or path. Every word must match.
+- 🧭 **Clear columns.** Each row shows the worktree, its git branch (`⎇`) and the live Claude session (`●`).
+- 📌 **Pin and delete.** `→` opens a menu: go, pin to top, or delete the worktree (with confirmation).
+- ⌨️ **Pure keyboard.** Arrows, `Enter`, `→` for actions, `←` for settings. Mouse works too. No config.
 - 🤖 **Optional robot mascot.** Install [`robot`](https://github.com/egor-xyz/robot) and it dances in the picker while you choose.
 - 🪶 **Zero dependencies** beyond `zsh` and `jq`. Pure zsh autoload — no daemon, no cache file.
 
@@ -117,9 +119,23 @@ wtclaude
 | ----------- | --------------------------------- |
 | `↑` / `↓`   | Move selection                    |
 | `Enter`     | Pick session, `cd` into its cwd   |
-| `→`         | Open settings                     |
-| type        | Filter the list                   |
-| `Esc` / `q` | Quit                              |
+| `→`         | Open actions: go / pin / delete   |
+| `←`         | Open settings                     |
+| type        | Search (name, branch, session, path) |
+| `Esc`       | Clear search, or quit             |
+| click       | Select a row; click it again to go |
+| right-click | Open actions for that row         |
+| wheel       | Move selection                    |
+
+**Delete** runs `git worktree remove` and always asks first (`y` to confirm).
+If the worktree has uncommitted changes, it asks a second time before it
+uses `--force`. If that still fails (for example, root-owned files), it asks a
+third time before it runs `sudo rm -rf` on the worktree and then
+`git worktree prune`. A locked worktree never gets the sudo step. The branch
+is kept. Only worktrees under
+`.claude/worktrees/` can be deleted, never the repo root.
+
+**Pins** are saved in `~/.config/wtclaude/pins`, one path per line.
 
 ---
 
