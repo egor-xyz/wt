@@ -16,7 +16,7 @@ You run Claude Code in five worktrees. You forget which terminal has which.
 You `cd` into the wrong one. You curse.
 
 **`wtclaude` finds them all, groups them, and `cd`s you into the right one.**
-Want a robot to dance while you pick? Install the optional
+Want a robot on the screen while you pick? Install the optional
 [`robot`](https://github.com/egor-xyz/robot) plugin alongside it. 🤖
 
 <img width="1280" height="640" alt="wtclaude" src="https://github.com/user-attachments/assets/1d1b6066-c4e0-42bb-a2ec-eef0b24fcb99" />
@@ -32,7 +32,7 @@ Want a robot to dance while you pick? Install the optional
 - 🧭 **Clear columns.** Each row shows the worktree, its git branch (`⎇`) and the live Claude session (`●`).
 - 📌 **Pin and delete.** `→` opens a menu: go, pin to top, or delete the worktree (with confirmation).
 - ⌨️ **Pure keyboard.** Arrows, `Enter`, `→` for actions, `←` for settings. Mouse works too. No config.
-- 🤖 **Optional robot mascot.** Install [`robot`](https://github.com/egor-xyz/robot) and it dances in the picker while you choose.
+- 🤖 **Optional robot mascot.** Install [`robot`](https://github.com/egor-xyz/robot) to show it in the picker. The screen stays still while you wait.
 - 🪶 **Zero dependencies** beyond `zsh` and `jq`. Pure zsh autoload — no daemon, no cache file.
 
 ---
@@ -151,7 +151,8 @@ For every repo with at least one live session, idle worktrees under
 worktree even when nothing is running there.
 
 If the optional [`robot`](https://github.com/egor-xyz/robot) plugin is
-installed, its mascot dances above the list while you scroll.
+installed, its mascot appears above the list. The picker redraws only when
+you press a key or click, or while it deletes a worktree.
 
 ---
 

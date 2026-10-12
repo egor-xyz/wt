@@ -164,6 +164,7 @@ local pick
 if (( count == 1 )); then
   pick=${items[1]}
 else
+  [[ -t 0 && -t 1 ]] || { echo "wtclaude: picker needs a terminal" >&2; return 1; }
   local sel=1 key seq aborted=0 focused=1 mode=list ssel=1 asel=1 dforce=0 derr=""
   # Background delete: dcwd/drepo target, dtmp holds out+rc, dstart/dspin
   # drive the spinner, dfiles lists uncommitted changes for the force step.
@@ -443,6 +444,8 @@ else
   trap 'printf "\e[?7h\e[?25h\e[?1000l\e[?1006l\e[?1049l\e[?1004l\e[23;0t\e]9;4;0\a"' EXIT
   trap 'return 130' INT TERM
   while true; do
+    # A closed terminal makes read fail at once. Leave instead of spinning.
+    [[ -t 0 && -t 1 ]] || { aborted=1; break; }
     if (( focused )); then
       # Query terminal size directly; $LINES/$COLUMNS may not refresh
       # inside a running zsh function on SIGWINCH.
@@ -694,7 +697,7 @@ else
       [[ $_wt_check_msg == "updated to "* ]] && _wt_notify wtclaude "$_wt_check_msg"
       continue
     fi
-    # Read with animation timeout when focused; block longer when blurred
+    # Wait for a key. Only a running delete needs a short timeout.
     if [[ $mode == deleting ]]; then
       if [[ -f $dtmp/rc ]]; then
         _wt_delete_done "$(<$dtmp/rc)" "$(<$dtmp/out)"
@@ -705,11 +708,10 @@ else
       fi
       (( dspin++ ))
     fi
-    local _timeout
-    if [[ $mode == deleting ]]; then _timeout=0.1
-    elif (( focused )); then _timeout=0.25; else _timeout=5; fi
-    if ! read -t $_timeout -k1 -s key 2>/dev/null; then
-      continue
+    if [[ $mode == deleting ]]; then
+      read -t 0.1 -k1 -s key 2>/dev/null || continue
+    else
+      read -k1 -s key 2>/dev/null || { aborted=1; break; }
     fi
     seq=$key
     if [[ $key == $'\e' ]]; then
