@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# wtclaude one-liner installer.
-#   curl -fsSL https://raw.githubusercontent.com/egor-xyz/wtclaude/main/install.sh | bash
+# wt one-liner installer.
+#   curl -fsSL https://raw.githubusercontent.com/egor-xyz/wt/main/install.sh | bash
 set -euo pipefail
 
-DEST="${WTCLAUDE_DIR:-$HOME/.wtclaude}"
-REPO="https://github.com/egor-xyz/wtclaude.git"
+DEST="${WT_DIR:-$HOME/.wt}"
+REPO="https://github.com/egor-xyz/wt.git"
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
-LINE="source \"$DEST/wtclaude.plugin.zsh\""
+LINE="source \"$DEST/wt.plugin.zsh\""
 
-RELEASES_API="https://api.github.com/repos/egor-xyz/wtclaude/releases/latest"
+RELEASES_API="https://api.github.com/repos/egor-xyz/wt/releases/latest"
 
 latest_release_tag() {
   curl -fsSL --max-time 10 "$RELEASES_API" 2>/dev/null \
@@ -38,11 +38,11 @@ if [ ! -f "$ZSHRC" ] || ! grep -qsF "$LINE" "$ZSHRC"; then
   echo "$LINE" >> "$ZSHRC"
   echo "→ added source line to $ZSHRC"
 else
-  echo "→ $ZSHRC already sources wtclaude"
+  echo "→ $ZSHRC already sources wt"
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "⚠  jq not found — install it: brew install jq"
 fi
 
-echo "✓ installed. reload: source $ZSHRC && wtclaude"
+echo "✓ installed. reload: source $ZSHRC && wt"

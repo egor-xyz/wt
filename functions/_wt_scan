@@ -1,0 +1,76 @@
+#autoload
+# Output: cwd<TAB>session<TAB>indent<TAB>pid<TAB>repo<TAB>tool.
+emulate -L zsh
+setopt extended_glob typeset_silent
+local dir=$HOME/.claude/sessions codex_home=${CODEX_HOME:-$HOME/.codex}
+local live saved f meta ts pid cwd name root top record wt index
+local -A repos seen group
+live=$(for f in $dir/*.json(N); do
+  jq -r 'select(.pid != null) | "\(.updatedAt)\t\(.pid)\t\(.cwd)\t\(.name // "Claude")"' "$f" 2>/dev/null
+done | while IFS=$'\t' read -r ts pid cwd name; do
+  kill -0 "$pid" 2>/dev/null && printf '%s\t%s\t%s\t%s\n' "$ts" "$pid" "$cwd" "$name"
+done)
+
+# Read only the metadata line. Never load whole conversation logs.
+index=$codex_home/session_index.jsonl
+[[ -r $index ]] || index=/dev/null
+saved=$(for f in $codex_home/sessions/**/*.jsonl(N.); do
+  IFS= read -r meta < "$f"
+  print -r -- "$meta"
+done | jq -sr --slurpfile titles "$index" '
+  def epoch: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601? // 0;
+  (reduce $titles[] as $t ({}; .[$t.id] = $t)) as $names |
+  .[] | select(.type == "session_meta" and (.payload.cwd | type) == "string" and (.payload.source | type) == "string") |
+  .payload as $p | ($names[$p.id] // {}) as $n |
+  [((($n.updated_at // $p.timestamp // "1970-01-01T00:00:00Z") | epoch) * 1000),
+   0, $p.cwd, ("Codex: " + ($n.thread_name // $p.id // "saved session"))] | @tsv
+' 2>/dev/null)
+
+# Prefer a live Claude session when both tools share a directory.
+local sessions=$({
+  print -r -- "$live" | sort -rn
+  print -r -- "$saved" | sort -rn
+} | awk -F'\t' 'NF >= 4 && !seen[$3]++')
+local rows=""
+while IFS=$'\t' read -r ts pid cwd name; do
+  [[ -d $cwd ]] || continue
+  cwd=${cwd:A}
+  [[ -n ${seen[$cwd]} ]] && continue
+  top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || top=$cwd
+  top=${top:A}
+  root=${group[$top]}
+  if [[ -z $root ]]; then
+    local -a worktrees=()
+    while IFS= read -r -d '' record; do
+      [[ $record == 'worktree '* ]] && worktrees+=("${record#worktree }")
+    done < <(git -C "$top" worktree list --porcelain -z 2>/dev/null)
+    root=${worktrees[1]:-$top}; root=${root:A}
+    for wt in $worktrees; do
+      wt=${wt:A}; group[$wt]=$root
+      [[ -d $wt ]] && repos[$wt]=$root
+    done
+    group[$top]=$root
+  fi
+  repos[$root]=$root
+  seen[$cwd]=1
+  rows+="$ts"$'\t'"$pid"$'\t'"$cwd"$'\t'"$name"$'\t'"$root"$'\n'
+done <<< "$sessions"
+for wt root in ${(kv)repos}; do
+  [[ -n ${seen[$wt]} || ! -d $wt ]] && continue
+  rows+="0"$'\t0\t'"$wt"$'\t-\t'"$root"$'\n'
+done
+[[ -n $rows ]] || return 1
+print -r -- "${rows%$'\n'}" | awk -F'\t' '
+  { repo=$5; if ($1+0 > newest[repo]+0) newest[repo]=$1;
+    row[NR]=$0; groups[NR]=repo }
+  END { for (i=1; i<=NR; i++) {
+    split(row[i], f, "\t");
+    printf "%.0f\t%s\t%d\t%s\n", newest[groups[i]], groups[i], (f[3] != groups[i]), row[i]
+  } }
+' | sort -t$'\t' -k1,1rn -k2,2 -k3,3n -k4,4rn | awk -F'\t' '
+  {
+    tool=($5 != 0 ? "Claude Code" : ($7 ~ /^Codex: / ? "Codex" : "-"));
+    if (tool == "Codex") sub(/^Codex: /, "", $7);
+    printf "%s\t%s\t%s\t%s\t%s\t%s\n", $6, $7, $3, $5, $8, tool
+  }
+'
