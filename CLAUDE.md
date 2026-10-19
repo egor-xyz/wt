@@ -4,23 +4,24 @@ Guidance for Claude Code (and humans) working in this repo.
 
 ## What this is
 
-`wtclaude` is a tiny zsh plugin that lists running Claude Code sessions and lets
+`wt` is a tiny zsh plugin that lists live Claude and saved Codex sessions and lets
 the user pick one to `cd` into. It's session/worktree navigation, not a
 framework.
 
 The picker shows an animated robot mascot while you choose — but that mascot now
 lives in a **separate, optional** plugin,
 [`egor-xyz/robot`](https://github.com/egor-xyz/robot). If that plugin is
-installed it provides the `crazy-robot` function and wtclaude renders the dance;
-if not, the picker simply runs without it. wtclaude ships no robot code of its
+installed it provides the `crazy-robot` function and wt renders the dance;
+if not, the picker simply runs without it. wt ships no robot code of its
 own.
 
 ## Layout
 
 ```
-wtclaude.plugin.zsh   plugin manager entry — sets fpath + autoloads
-install.sh            curl one-liner installer (clones to ~/.wtclaude, patches .zshrc)
-functions/wtclaude    main command: picker that reads ~/.claude/sessions/*.json
+wt.plugin.zsh   plugin manager entry — sets fpath + autoloads
+install.sh            curl one-liner installer (clones to ~/.wt, patches .zshrc)
+functions/wt    main command: session and worktree picker
+functions/_wt_scan   Claude/Codex scan and Git worktree discovery
 ```
 
 Function files use zsh autoload convention: file name = function name, no
@@ -36,9 +37,9 @@ Function files use zsh autoload convention: file name = function name, no
 - **No `print -P`** for content that may contain `\` (eats trailing backslash
   as line continuation). Use `printf '\e[...m%s\e[39m\n'` with raw ANSI. The
   picker's colored chrome uses `print -P` only because it has no backslashes.
-- **Optional robot mascot.** wtclaude calls `crazy-robot` only when it exists
+- **Optional robot mascot.** wt calls `crazy-robot` only when it exists
   (`(( ${+functions[crazy-robot]} ))`) — i.e. when the `egor-xyz/robot` plugin
-  is installed. The `_robot_*` locals declared in `wtclaude` are the
+  is installed. The `_robot_*` locals declared in `wt` are the
   dynamic-scope contract `crazy-robot` reads/writes; keep them local, and keep
   every robot call behind the guard so the picker works without the plugin.
 
@@ -46,33 +47,29 @@ Function files use zsh autoload convention: file name = function name, no
 
 The robot lives in its own repo now — animations are added there, not here. See
 [`egor-xyz/robot`](https://github.com/egor-xyz/robot) and its
-`add-robot-animation` skill. wtclaude only *calls* `crazy-robot` (when the plugin
+`add-robot-animation` skill. wt only *calls* `crazy-robot` (when the plugin
 is present); it ships no frames.
 
 ## Testing
 
-There is no test suite — this is a TUI plugin. To smoke-test:
+Run the discovery tests and the terminal picker test:
 
 ```sh
-zsh -fc '
-  fpath=(./functions $fpath)
-  autoload -Uz wtclaude
-  (sleep 0.6; printf "\e") | wtclaude 2>&1 | head -20
-'
+python3 -m unittest discover -s tests -v
 ```
 
 The robot mascot can't be previewed from this repo (it lives in
 [`egor-xyz/robot`](https://github.com/egor-xyz/robot)). To see the dance in the
-picker, install that plugin alongside wtclaude.
+picker, install that plugin alongside wt.
 
 ## Distribution
 
 Two install paths must keep working:
 
-1. **`install.sh`** — `curl … | bash`. Clones to `~/.wtclaude`, appends a
-   `source ...wtclaude.plugin.zsh` line to `~/.zshrc`. Idempotent.
+1. **`install.sh`** — `curl … | bash`. Clones to `~/.wt`, appends a
+   `source ...wt.plugin.zsh` line to `~/.zshrc`. Idempotent.
 2. **Plugin managers** — antidote, zinit, sheldon, oh-my-zsh. They source
-   `*.plugin.zsh`, so `wtclaude.plugin.zsh` is the contract. Keep it minimal:
+   `*.plugin.zsh`, so `wt.plugin.zsh` is the contract. Keep it minimal:
    compute its own dir, prepend `functions/` to `fpath`, `autoload -Uz` the
    public names.
 

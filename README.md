@@ -1,8 +1,8 @@
 <div align="center">
 
-# wtclaude 🤖
+# wt 🤖
 
-### One keystroke. Right Claude session. Right worktree. Done.
+### One keystroke. Right Claude or Codex session. Right worktree. Done.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![zsh](https://img.shields.io/badge/shell-zsh-89e051.svg)](https://www.zsh.org/)
@@ -12,14 +12,14 @@
 
 ---
 
-You run Claude Code in five worktrees. You forget which terminal has which.
+You use Claude Code and Codex in five worktrees. You forget which terminal has which.
 You `cd` into the wrong one. You curse.
 
-**`wtclaude` finds them all, groups them, and `cd`s you into the right one.**
+**`wt` finds them all, groups them, and `cd`s you into the right one.**
 Want a robot on the screen while you pick? Install the optional
 [`robot`](https://github.com/egor-xyz/robot) plugin alongside it. 🤖
 
-<img width="1280" height="640" alt="wtclaude" src="https://github.com/user-attachments/assets/1d1b6066-c4e0-42bb-a2ec-eef0b24fcb99" />
+<img width="1280" height="640" alt="wt" src="https://github.com/user-attachments/assets/1d1b6066-c4e0-42bb-a2ec-eef0b24fcb99" />
 
 ---
 
@@ -29,7 +29,7 @@ Want a robot on the screen while you pick? Install the optional
 - 💀 **Dead sessions filtered.** Only live PIDs show up.
 - 🗂️ **Idle worktrees too.** Every worktree under a known repo, not just the running ones.
 - 🔎 **Search everything.** Type to filter by worktree, repo, branch, session name or path. Every word must match.
-- 🧭 **Clear columns.** Each row shows the worktree, its git branch (`⎇`) and the live Claude session (`●`).
+- 🧭 **Clear columns.** Each row shows the worktree, branch, tool (`Claude Code` or `Codex`), and session name. Live sessions use `●`. Saved sessions use `○`.
 - 📌 **Pin and delete.** `→` opens a menu: go, pin to top, or delete the worktree (with confirmation).
 - ⌨️ **Pure keyboard.** Arrows, `Enter`, `→` for actions, `←` for settings. Mouse works too. No config.
 - 🤖 **Optional robot mascot.** Install [`robot`](https://github.com/egor-xyz/robot) to show it in the picker. The screen stays still while you wait.
@@ -42,11 +42,11 @@ Want a robot on the screen while you pick? Install the optional
 ### One-liner
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/egor-xyz/wtclaude/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/egor-xyz/wt/main/install.sh | bash
 ```
 
 Re-run the same line later to update — the installer pins your local
-copy to the latest [GitHub Release](https://github.com/egor-xyz/wtclaude/releases)
+copy to the latest [GitHub Release](https://github.com/egor-xyz/wt/releases)
 tag, so you always land on a published, version-tagged commit (never an
 unreleased `main`).
 
@@ -56,7 +56,7 @@ unreleased `main`).
 <summary><b>antidote / antibody</b></summary>
 
 ```zsh
-antidote bundle egor-xyz/wtclaude
+antidote bundle egor-xyz/wt
 ```
 </details>
 
@@ -64,7 +64,7 @@ antidote bundle egor-xyz/wtclaude
 <summary><b>zinit</b></summary>
 
 ```zsh
-zinit light egor-xyz/wtclaude
+zinit light egor-xyz/wt
 ```
 </details>
 
@@ -74,8 +74,8 @@ zinit light egor-xyz/wtclaude
 `~/.config/sheldon/plugins.toml`:
 
 ```toml
-[plugins.wtclaude]
-github = "egor-xyz/wtclaude"
+[plugins.wt]
+github = "egor-xyz/wt"
 ```
 </details>
 
@@ -83,19 +83,19 @@ github = "egor-xyz/wtclaude"
 <summary><b>oh-my-zsh</b> (custom plugin)</summary>
 
 ```sh
-git clone https://github.com/egor-xyz/wtclaude.git \
-  ~/.oh-my-zsh/custom/plugins/wtclaude
+git clone https://github.com/egor-xyz/wt.git \
+  ~/.oh-my-zsh/custom/plugins/wt
 ```
 
-Then add `wtclaude` to your `plugins=(...)` line.
+Then add `wt` to your `plugins=(...)` line.
 </details>
 
 <details>
 <summary><b>Manual</b></summary>
 
 ```sh
-git clone https://github.com/egor-xyz/wtclaude.git ~/.wtclaude
-echo 'source ~/.wtclaude/wtclaude.plugin.zsh' >> ~/.zshrc
+git clone https://github.com/egor-xyz/wt.git ~/.wt
+echo 'source ~/.wt/wt.plugin.zsh' >> ~/.zshrc
 ```
 </details>
 
@@ -105,14 +105,15 @@ echo 'source ~/.wtclaude/wtclaude.plugin.zsh' >> ~/.zshrc
 
 - `zsh` ≥ 5.0
 - `jq` — `brew install jq`
-- [Claude Code](https://claude.com/claude-code) (writes `~/.claude/sessions/*.json`)
+- Claude Code or Codex with local sessions
+- Git to find registered worktrees
 
 ---
 
 ## 🎮 Usage
 
 ```sh
-wtclaude
+wt
 ```
 
 | Key         | Action                            |
@@ -135,20 +136,25 @@ third time before it runs `sudo rm -rf` on the worktree and then
 is kept. Only worktrees under
 `.claude/worktrees/` can be deleted, never the repo root.
 
-**Pins** are saved in `~/.config/wtclaude/pins`, one path per line.
+**Pins** are saved in `~/.config/wt/pins`, one path per line.
 
 ---
 
 ## 🧠 How it works
 
-`wtclaude` scans `~/.claude/sessions/*.json`, filters out dead sessions (PIDs
+`wt` scans `~/.claude/sessions/*.json`, filters out dead sessions (PIDs
 that no longer exist), groups worktree sessions under their parent repo, and
 shows you an arrow-key picker. Pick one → your shell `cd`s straight into that
 session's working directory.
 
-For every repo with at least one live session, idle worktrees under
-`<repo>/.claude/worktrees/*` are listed too — so you can hop into a sibling
-worktree even when nothing is running there.
+Codex sessions come from `${CODEX_HOME:-~/.codex}/sessions/**/*.jsonl`.
+The scan reads only each file’s first metadata line. Session names come from
+`session_index.jsonl`. Child agent sessions and archived sessions are excluded.
+Codex rows show `○` because saved sessions have no live process ID.
+
+For each known repo, `git worktree list` supplies every registered worktree.
+This includes `.worktrees`, `.claude/worktrees`, and worktrees outside the repo.
+Missing directories are skipped.
 
 If the optional [`robot`](https://github.com/egor-xyz/robot) plugin is
 installed, its mascot appears above the list. The picker redraws only when
@@ -162,13 +168,13 @@ All optional. Set in `~/.zshrc` before sourcing the plugin.
 
 | Variable                   | Default | Effect                                                                                                  |
 | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `WTCLAUDE_NO_ROBOT`        | `0`     | `1` hides the robot mascot even when the [`robot`](https://github.com/egor-xyz/robot) plugin is installed. |
-| `WTCLAUDE_AUTO_UPDATE`     | `0`     | `1` fetches tags and checks out the latest GitHub Release in the background, once per launch. New version visible on next invocation. |
+| `WT_NO_ROBOT`        | `0`     | `1` hides the robot mascot even when the [`robot`](https://github.com/egor-xyz/robot) plugin is installed. |
+| `WT_AUTO_UPDATE`     | `0`     | `1` fetches tags and checks out the latest GitHub Release in the background, once per launch. New version visible on next invocation. |
 
 ```zsh
 # example: silent robot, auto-update
-export WTCLAUDE_NO_ROBOT=1
-export WTCLAUDE_AUTO_UPDATE=1
+export WT_NO_ROBOT=1
+export WT_AUTO_UPDATE=1
 ```
 
 ## 📦 Versioning
@@ -178,7 +184,7 @@ from the closest annotated tag at plugin load (shown dim-grey on the picker's
 separator).
 
 Both the installer and the in-shell updater pin to the **latest published
-[GitHub Release](https://github.com/egor-xyz/wtclaude/releases)** — never the
+[GitHub Release](https://github.com/egor-xyz/wt/releases)** — never the
 tip of `main`. Pre-releases are skipped (the `/releases/latest` endpoint
 filters them out).
 
