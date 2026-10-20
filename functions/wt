@@ -748,7 +748,14 @@ else
           ;;
         *)
           if [[ ${#seq} == 1 && $seq == [[:print:]] ]]; then
-            query+=$seq; _wt_filter; printf '\e[H\e[J'
+            query+=$seq
+            # A paste arrives as many keys at once: take them all, then
+            # filter and redraw once (not once per character).
+            local pc
+            while read -t 0.005 -k1 -s pc 2>/dev/null; do
+              [[ $pc == [[:print:]] ]] && query+=$pc
+            done
+            _wt_filter; printf '\e[H\e[J'
           fi
           ;;
       esac
