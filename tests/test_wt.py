@@ -104,7 +104,9 @@ class PickerTest(unittest.TestCase):
         self.addCleanup(lambda: proc.poll() is None and proc.kill())
         output = b''
         deadline = time.monotonic() + 8
-        while b'quit' not in output and time.monotonic() < deadline:
+        # Read the whole first frame: it ends with the synchronized-output close.
+        while not (b'quit' in output and output.endswith(b'\x1b[?2026l')) \
+                and time.monotonic() < deadline:
             if select.select([master], [], [], .2)[0]:
                 output += os.read(master, 65536)
         self.assertIn(b'Risk policy wiring', output)
