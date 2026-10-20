@@ -608,7 +608,9 @@ else
         fi
       else
         # Settings panel
-        print -P "%F{244}Settings%f"$'\e[K'
+        local svtag=""
+        [[ -n $WT_VERSION ]] && svtag="  %F{108}v${WT_VERSION}%f"
+        print -P "%F{244}Settings%f${svtag}"$'\e[K'
         print -P ""$'\e[K'
         local slw=$(( cols > 40 ? 30 : cols / 2 ))
         for ((i=1; i<=scount; i++)); do
@@ -743,6 +745,9 @@ else
         $'\n'|$'\r') (( mcount > 0 )) && break ;;
         $'\x7f'|$'\b')
           [[ -n $query ]] && { query=${query%?}; _wt_filter; printf '\e[H\e[J'; }
+          ;;
+        $'\x15')
+          [[ -n $query ]] && { query=""; _wt_filter; printf '\e[H\e[J'; }
           ;;
         $'\e')
           if [[ -n $query ]]; then query=""; _wt_filter; printf '\e[H\e[J'
